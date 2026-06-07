@@ -744,6 +744,40 @@ static int text_section_line_count(const char *text) {
     return lines;
 }
 
+static size_t text_section_word_wrap_chunk(const char *line, size_t bytes, int width) {
+    if (!line || bytes == 0) {
+        return 0;
+    }
+    if (width <= 0) {
+        return bytes;
+    }
+    size_t fit = ghostcode_ui_text_bytes_for_width(line, width);
+    if (fit == 0 || fit > bytes) {
+        fit = bytes;
+    }
+    if (fit >= bytes) {
+        return bytes;
+    }
+
+    size_t break_at = 0;
+    for (size_t i = 0; i < fit && line[i]; i++) {
+        if (line[i] == ' ' || line[i] == '\t') {
+            break_at = i;
+        }
+    }
+    if (break_at > 0) {
+        return break_at;
+    }
+    return fit;
+}
+
+static size_t text_section_skip_leading_space(const char *line, size_t offset, size_t line_bytes) {
+    while (offset < line_bytes && (line[offset] == ' ' || line[offset] == '\t')) {
+        offset++;
+    }
+    return offset;
+}
+
 static int text_section_wrap_line_count(const char *text, int width) {
     int lines = 1;
     size_t offset = 0;
@@ -759,10 +793,11 @@ static int text_section_wrap_line_count(const char *text, int width) {
             lines++;
         }
         while (line_offset < line_bytes) {
-            size_t chunk_bytes = ghostcode_ui_text_bytes_for_width(line + line_offset, width);
-            if (chunk_bytes == 0 || chunk_bytes > line_bytes - line_offset) {
-                chunk_bytes = line_bytes - line_offset;
+            line_offset = text_section_skip_leading_space(line, line_offset, line_bytes);
+            if (line_offset >= line_bytes) {
+                break;
             }
+            size_t chunk_bytes = text_section_word_wrap_chunk(line + line_offset, line_bytes - line_offset, width);
             line_offset += chunk_bytes;
             lines++;
         }
@@ -1343,10 +1378,11 @@ static void draw_text_section(
         do {
             size_t draw_bytes = line_bytes - line_offset;
             if (wrap_text && draw_bytes > 0) {
-                draw_bytes = ghostcode_ui_text_bytes_for_width(line + line_offset, width);
-                if (draw_bytes == 0 || draw_bytes > line_bytes - line_offset) {
-                    draw_bytes = line_bytes - line_offset;
+                line_offset = text_section_skip_leading_space(line, line_offset, line_bytes);
+                if (line_offset >= line_bytes) {
+                    break;
                 }
+                draw_bytes = text_section_word_wrap_chunk(line + line_offset, line_bytes - line_offset, width);
             }
             int draw_y = y + row;
             if (draw_y >= clip_top && draw_y < clip_bottom) {
