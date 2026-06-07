@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demo form for testing TForm from a source checkout."""
+"""Developer settings form for testing TForm from a source checkout."""
 
 from __future__ import annotations
 
@@ -9,107 +9,155 @@ from tform import FilePicker, Form, Text
 
 
 def build_form() -> Form:
-    form = Form(title="Patient Intake")
-    file_picker = FilePicker(mode="file", start_dir="..")
-    directory_picker = FilePicker(mode="directory", start_dir="..")
+    form = Form(title="Developer Settings")
+    file_picker = FilePicker(mode="file", start_dir=".")
+    directory_picker = FilePicker(mode="directory", start_dir=".")
 
-    form.add_text_section(Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque consectetur ipsum ante, et vulputate nisl mattis ac. Fusce at est arcu. Integer volutpat dui ut ex scelerisque, ac auctor erat pharetra. Nunc vestibulum gravida luctus. Interdum et malesuada fames ac ante ipsum primis in faucibus. Nullam ultrices magna arcu, in scelerisque velit ultricies eget. Etiam pulvinar dui sit amet mi vestibulum cursus. Sed luctus eros odio, at molestie massa aliquam tincidunt. Maecenas elit risus, dignissim ac faucibus in, lacinia vel magna. Nullam sed orci tincidunt, scelerisque enim sed, imperdiet diam. Aliquam eget pulvinar ante. Sed eu justo velit. Pellentesque et orci vehicula, eleifend ipsum id, euismod metus. Mauris fermentum dolor rhoncus, luctus eros vel, tristique enim. Duis tempus, magna sit amet dictum pharetra, lectus justo tincidunt eros, commodo porta velit nisl ut neque.", align="center", color="red", bold=True, wrap_text=True))
-    form.add_separator(Text("Patient", color="yellow", bold=True), color="cyan")
+    form.add_text_section(
+        Text(
+            "Configure local project defaults, editor behavior, and development tooling for this workspace.",
+            align="center",
+            color="cyan",
+            bold=True,
+            wrap_text=True,
+        )
+    )
+    form.add_separator(Text("Workspace", color="yellow", bold=True), color="cyan")
 
     form.add_text_input(
-        key="first_name",
-        label=Text("First Name", align="center", bold=True, color="cyan"),
-        default="",
-        description="Patient first name.",
+        key="project_name",
+        label=Text("Project Name", align="center", bold=True, color="cyan"),
+        default="TForm",
+        description="Display name used in local development prompts and generated output.",
         field_color="cyan",
     )
 
     form.add_text_input(
-        key="last_name",
-        label=Text("Last Name", align="right"),
-        default="",
-        description="Patient last name.",
+        key="workspace_root",
+        label=Text("Workspace Root", align="right", color="green"),
+        default=".",
+        description="Root directory for source, tests, and generated artifacts.",
+        field_color="green",
+        tools=directory_picker,
+    )
+
+    form.add_text_input(
+        key="config_file",
+        label=Text("Config File", color="cyan"),
+        default="pyproject.toml",
+        description="Primary project configuration file.",
         field_color="blue",
-    )
-
-    form.add_text_input(
-        key="referral_file",
-        label=Text("Referral File", color="cyan"),
-        default="",
-        description="Path to a referral file.",
-        field_color="cyan",
         tools=file_picker,
     )
 
     form.add_optional_text_input(
-        key="notes",
-        label=Text("Notes", align="left", color="white"),
-        default="",
-        description="Wrapped patient notes.",
+        key="project_notes",
+        label=Text("Project Notes", align="left", color="white"),
+        default="Use this workspace for local builds, linting, and release prep.",
+        description="Optional notes shown to developers who open this settings profile.",
         field_color="white",
         wrap_text=True,
     )
 
-    form.add_separator(Text("Vitals", align="center", color="green"), color="yellow")
+    form.add_separator(Text("Editor", align="center", color="green"), color="yellow")
+
+    form.add_choice_input(
+        key="editor_theme",
+        label=Text("Theme", align="center", color="yellow"),
+        choices=["System", "Dark", "Light", "High Contrast"],
+        default="Dark",
+        description="Preferred editor color theme.",
+        field_color="yellow",
+    )
 
     form.add_int_input(
-        key="age",
-        label=Text("Age", align="center", bold=True, color="magenta"),
-        default=1,
-        description="Patient age.",
+        key="tab_width",
+        label=Text("Tab Width", align="center", bold=True, color="magenta"),
+        default=4,
+        description="Spaces used when rendering tabs.",
         scrollable=True,
-        min=0,
-        max=130,
+        min=2,
+        max=8,
         field_color="magenta",
     )
 
-    form.add_int_input(
-        key="visit_count",
-        label=Text("Visit Count", align="right"),
-        default=0,
-        description="Unbounded scrollable integer for testing unlimited scrolling.",
+    form.add_bool_input(
+        key="format_on_save",
+        label=Text("Format On Save", align="right", color="green"),
+        default=True,
+        description="Run the configured formatter whenever a file is saved.",
         field_color="green",
     )
 
-    form.add_separator(Text("Demographics", align="right", color="blue"), color="magenta")
+    form.add_separator(Text("Build & Test", align="right", color="blue"), color="magenta")
+
+    form.add_int_input(
+        key="max_workers",
+        label=Text("Max Workers", align="right"),
+        default=8,
+        description="Maximum number of parallel jobs for builds and tests.",
+        scrollable=True,
+        min=1,
+        max=64,
+        field_color="green",
+    )
 
     form.add_choice_input(
-        key="gender",
-        label="Gender",
-        choices=["Male", "Female"],
-        description="Patient gender.",
+        key="test_profile",
+        label="Test Profile",
+        choices=["Unit", "Integration", "Full Suite"],
+        default="Unit",
+        description="Default test scope for local verification.",
         field_color="yellow",
     )
 
     form.add_checkbox_input(
-        key="services",
-        label=Text("Services", align="center", color="cyan"),
+        key="enabled_tools",
+        label=Text("Enabled Tools", align="center", color="cyan"),
         options=[
-            Text("Labs", color="green", align="center"),
-            Text("Imaging", color="yellow"),
-            Text("Referral", color="magenta"),
+            Text("Formatter", color="green", align="center"),
+            Text("Linter", color="yellow"),
+            Text("Type Checker", color="magenta"),
+            Text("Test Runner", color="cyan"),
         ],
-        default=["Labs"],
-        description="Requested services.",
+        default=["Formatter", "Linter", "Test Runner"],
+        description="Developer tools enabled for this workspace.",
         field_color="cyan",
         tick="dot",
     )
 
+    form.add_separator(Text("Paths & Commands", align="center", color="white"), color="blue")
+
     form.add_list_input(
-        key="documents",
-        label=Text("Documents", align="center"),
-        tools=file_picker,
+        key="source_directories",
+        label=Text("Source Directories", align="center"),
+        default=["src", "tests", "examples"],
+        description="Directories scanned by tooling.",
+        field_color="white",
     )
 
     form.add_list_input(
-        key="directories",
-        label=Text("Directories", align="center", color="green"),
+        key="watch_directories",
+        label=Text("Watch Directories", align="center", color="green"),
+        description="Directories watched by local development commands.",
+        field_color="green",
         tools=directory_picker,
     )
 
     form.add_list_input(
-        key="medications",
-        label=Text("Medications", align="center", color="white"),
+        key="environment_files",
+        label=Text("Environment Files", align="center", color="cyan"),
+        description="Environment files loaded before running commands.",
+        field_color="cyan",
+        tools=file_picker,
+    )
+
+    form.add_list_input(
+        key="extra_arguments",
+        label=Text("Extra Arguments", align="center", color="white"),
+        default=["--verbose", "--color=always"],
+        description="Additional arguments appended to local build and test commands.",
+        field_color="white",
     )
 
     return form
