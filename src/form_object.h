@@ -16,7 +16,8 @@ typedef enum {
     TFORM_FIELD_CHECKBOX,
     TFORM_FIELD_OPTIONAL_TEXT,
     TFORM_FIELD_TEXT_SECTION,
-    TFORM_FIELD_SEPARATOR
+    TFORM_FIELD_SEPARATOR,
+    TFORM_FIELD_SECTION
 } TFormFieldKind;
 
 typedef enum {
@@ -51,6 +52,35 @@ typedef struct {
 } TFormTextStyle;
 
 typedef struct {
+    int is_separator;
+    char **cells;
+} TFormTableRow;
+
+typedef struct {
+    TFormTextStyle title;
+    int show_lines;
+    TFormTextColor color;
+    int padding;
+    char **columns;
+    int column_count;
+    int column_capacity;
+    TFormTableRow *rows;
+    int row_count;
+    int row_capacity;
+} TFormTable;
+
+typedef enum {
+    TFORM_SECTION_ELEMENT_TEXT,
+    TFORM_SECTION_ELEMENT_TABLE
+} TFormSectionElementKind;
+
+typedef struct {
+    TFormSectionElementKind kind;
+    TFormTextStyle text;
+    TFormTable table;
+} TFormSectionElement;
+
+typedef struct {
     char *key;
     TFormTextStyle label;
     char *description;
@@ -79,6 +109,10 @@ typedef struct {
     int *checkbox_checked;
     int checkbox_count;
     TFormCheckboxTick checkbox_tick;
+    TFormSectionElement *section_elements;
+    int section_element_count;
+    int section_element_capacity;
+    int section_boxed;
 } TFormField;
 
 typedef struct {
@@ -92,9 +126,13 @@ typedef struct {
 extern PyTypeObject TFormType;
 extern PyTypeObject TFormTextType;
 extern PyTypeObject TFormFilePickerType;
+extern PyTypeObject TFormTableType;
 
 void tform_text_style_init(TFormTextStyle *style);
 void tform_text_style_free(TFormTextStyle *style);
+void tform_table_init(TFormTable *table);
+void tform_table_free(TFormTable *table);
+int tform_table_copy(TFormTable *dest, const TFormTable *src);
 void tform_field_free(TFormField *field);
 int tform_list_append_value(TFormField *field, const char *value, const TFormTextStyle *style);
 int tform_list_set_value(TFormField *field, int index, const char *value, const TFormTextStyle *style);

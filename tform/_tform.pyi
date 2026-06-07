@@ -6,6 +6,7 @@ TextColor = Literal["default", "white", "cyan", "yellow", "green", "blue", "mage
 FilePickerMode = Literal["file", "directory"]
 CheckboxTick = Literal["x", "block", "dot"]
 Label = str | "Text"
+SectionItem = str | "Text" | "Table"
 
 
 class Text:
@@ -42,6 +43,34 @@ class FilePicker:
 
     @property
     def start_dir(self) -> str: ...
+
+
+class Table:
+    def __init__(
+        self,
+        title: Label = "",
+        show_lines: bool = True,
+        color: TextColor = "default",
+        padding: int = 1,
+    ) -> None: ...
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def show_lines(self) -> bool: ...
+
+    @property
+    def color(self) -> TextColor: ...
+
+    @property
+    def padding(self) -> int: ...
+
+    def add_column(self, name: str) -> None: ...
+
+    def add_row(self, *cells: str) -> None: ...
+
+    def add_separator(self) -> None: ...
 
 
 class Form:
@@ -81,6 +110,13 @@ class Form:
     def add_text_section(
         self,
         text: Label,
+        padding: int = 1,
+    ) -> None: ...
+
+    def add_section(
+        self,
+        *items: SectionItem,
+        boxed: bool = False,
         padding: int = 1,
     ) -> None: ...
 

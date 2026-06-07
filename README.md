@@ -14,7 +14,7 @@ plain Python values.
 
 - Native ncurses UI implemented as a CPython extension.
 - Text, optional text, boolean, choice, checkbox, integer, and list inputs.
-- Static text sections and separators for grouping larger forms.
+- Static sections, text blocks, separators, and tables for grouping larger forms.
 - Styled labels with alignment, color, bold text, and wrapping.
 - Inline text editing with cursor movement and clipboard paste.
 - Scrollable integer fields with optional `min` and `max` bounds.
@@ -50,13 +50,23 @@ python3 -m pip install -e .
 ## Quick Start
 
 ```python
-from tform import FilePicker, Form, Text
+from tform import FilePicker, Form, Table, Text
 
 
 form = Form(title="Project Setup")
+commands = Table(
+    title=Text("Commands", align="center", bold=True, color="yellow"),
+    color="cyan",
+)
+commands.add_column("Command")
+commands.add_column("Default")
+commands.add_row("Build", "python3 setup.py build_ext --inplace")
+commands.add_row("Demo", "python3 examples/demo.py")
 
-form.add_text_section(
-    Text("Create a project configuration.", color="cyan", bold=True)
+form.add_section(
+    Text("Create a project configuration.", color="cyan", bold=True),
+    commands,
+    boxed=True,
 )
 
 form.add_text_input(
@@ -113,7 +123,7 @@ python3 examples/demo.py
 Import the framework objects from `tform`:
 
 ```python
-from tform import FilePicker, Form, Text
+from tform import FilePicker, Form, Table, Text
 ```
 
 ### `Form`
@@ -122,8 +132,8 @@ from tform import FilePicker, Form, Text
 appear, then call `run()`.
 
 `run()` returns a `dict[str, Any]` when the user saves the form, or `None` when
-the user exits without saving. Static text sections and separators are visual
-only and are not included in the returned dictionary.
+the user exits without saving. Static sections, tables, text sections, and
+separators are visual only and are not included in the returned dictionary.
 
 ### `Text`
 
@@ -153,6 +163,30 @@ FilePicker(mode="directory", start_dir=".")
 ```
 
 Supported modes are `file` and `directory`.
+
+### `Table`
+
+`Table` renders static tabular content inside `add_section()`.
+
+```python
+table = Table(
+    title=Text("Command Defaults", align="center", bold=True, color="yellow"),
+    show_lines=True,
+    color="cyan",
+)
+table.add_column("Command")
+table.add_column("Default")
+table.add_row("Build", "python3 setup.py build_ext --inplace")
+table.add_separator()
+table.add_row("Demo", "python3 examples/demo.py")
+
+form.add_section(Text("Developer Settings", color="cyan", bold=True), table, boxed=True)
+```
+
+Rows must have the same number of cells as the table has columns. The table
+title accepts `str` or `Text`, renders above the table, and is aligned within
+the table bounds. `show_lines` keeps the outer table border and controls the
+inner grid lines.
 
 ## Field Types
 
@@ -252,15 +286,20 @@ form.add_list_input(
 List fields return `list[str]`. Without tools, users can add, edit, and delete
 plain text entries. With a `FilePicker`, add and edit actions open the picker.
 
-### Text Sections and Separators
+### Static Sections and Separators
 
 ```python
-form.add_text_section(Text("Developer Settings", color="cyan", bold=True))
+form.add_section(
+    Text("Developer Settings", color="cyan", bold=True),
+    table,
+    boxed=True,
+)
 form.add_separator(Text("Build & Test", color="green"), color="yellow")
 ```
 
-Text sections and separators organize the form visually and do not return
-values.
+Static sections accept `Text`, `Table`, and plain strings, then render them in
+order. `add_text_section()` remains available for compatibility, but
+`add_section()` is the preferred static-content API.
 
 ## Controls
 

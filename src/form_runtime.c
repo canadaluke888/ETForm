@@ -409,13 +409,16 @@ static void field_value(TFormField *field, char *buffer, size_t size) {
             break;
         case TFORM_FIELD_TEXT_SECTION:
         case TFORM_FIELD_SEPARATOR:
+        case TFORM_FIELD_SECTION:
             snprintf(buffer, size, "%s", field->label.value ? field->label.value : "");
             break;
     }
 }
 
 static int field_is_selectable(TFormField *field) {
-    return field && field->kind != TFORM_FIELD_SEPARATOR && field->kind != TFORM_FIELD_TEXT_SECTION;
+    return field && field->kind != TFORM_FIELD_SEPARATOR &&
+        field->kind != TFORM_FIELD_TEXT_SECTION &&
+        field->kind != TFORM_FIELD_SECTION;
 }
 
 static int field_is_inline_scrollable(TFormField *field) {
@@ -679,6 +682,7 @@ static void edit_field(TFormField *field) {
             break;
         case TFORM_FIELD_TEXT_SECTION:
         case TFORM_FIELD_SEPARATOR:
+        case TFORM_FIELD_SECTION:
             break;
         case TFORM_FIELD_CHOICE:
         case TFORM_FIELD_BOOL:
@@ -772,6 +776,106 @@ static int text_section_wrap_line_count(const char *text, int width) {
     return lines > 0 ? lines : 1;
 }
 
+static void table_column_widths(TFormTable *table, int *widths) {
+    if (!table || !widths) {
+        return;
+    }
+    for (int col = 0; col < table->column_count; col++) {
+        widths[col] = ghostcode_ui_text_width(table->columns[col] ? table->columns[col] : "");
+    }
+    for (int row = 0; row < table->row_count; row++) {
+        if (table->rows[row].is_separator) {
+            continue;
+        }
+        for (int col = 0; col < table->column_count; col++) {
+            int width = ghostcode_ui_text_width(table->rows[row].cells[col] ? table->rows[row].cells[col] : "");
+            if (width > widths[col]) {
+                widths[col] = width;
+            }
+        }
+    }
+}
+
+static int table_inner_width_from_columns(TFormTable *table, const int *widths) {
+    if (!table || table->column_count <= 0 || !widths) {
+        return 1;
+    }
+    int width = 0;
+    if (table->show_lines) {
+        width = 1;
+        for (int col = 0; col < table->column_count; col++) {
+            width += widths[col] + 3;
+        }
+    } else {
+        for (int col = 0; col < table->column_count; col++) {
+            width += widths[col];
+            if (col + 1 < table->column_count) {
+                width += 2;
+            }
+        }
+        width += 4;
+    }
+    return width;
+}
+
+static int table_display_height(TFormTable *table) {
+    int padding = table && table->padding >= 0 ? table->padding : TFORM_DEFAULT_PADDING;
+    if (!table || table->column_count <= 0) {
+        return 1 + padding * 2;
+    }
+    int height = table->show_lines ? 4 : 3;
+    if (table->title.value && *table->title.value) {
+        height++;
+    }
+    for (int row = 0; row < table->row_count; row++) {
+        if (table->rows[row].is_separator) {
+            if (table->show_lines) {
+                height++;
+            }
+        } else {
+            height++;
+        }
+    }
+    return height + padding * 2;
+}
+
+static int section_element_height(TFormSectionElement *element, int width) {
+    if (!element) {
+        return 0;
+    }
+    if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+        return table_display_height(&element->table);
+    }
+    if (element->text.wrap_text) {
+        return text_section_wrap_line_count(element->text.value, width);
+    }
+    return text_section_line_count(element->text.value);
+}
+
+static int section_display_height(TFormField *field, int width) {
+    if (!field) {
+        return 0;
+    }
+    int height = field->section_boxed ? 2 : 0;
+    int inner_width = width;
+    if (field->section_boxed) {
+        inner_width -= 4;
+    }
+    if (inner_width < 1) {
+        inner_width = 1;
+    }
+    for (int i = 0; i < field->section_element_count; i++) {
+        if (i > 0) {
+            height++;
+        }
+        height += section_element_height(&field->section_elements[i], inner_width);
+    }
+    if (height < 1) {
+        height = 1;
+    }
+    return height;
+}
+
 static int field_display_height(TFormField *field, int width) {
     int padding = field && field->padding >= 0 ? field->padding : TFORM_DEFAULT_PADDING;
     int height;
@@ -783,6 +887,9 @@ static int field_display_height(TFormField *field, int width) {
             return text_section_wrap_line_count(field->label.value, width) + padding * 2;
         }
         return text_section_line_count(field->label.value) + padding * 2;
+    }
+    if (field && field->kind == TFORM_FIELD_SECTION) {
+        return section_display_height(field, width) + padding * 2;
     }
     if (field && field->kind == TFORM_FIELD_LIST) {
         return (field->list_value.count > 0 ? field->list_value.count : 1) + 3 + padding * 2;
@@ -1271,6 +1378,356 @@ static void draw_text_section(
     }
 }
 
+static int table_rule_width(TFormTable *table, const int *widths) {
+    return table_inner_width_from_columns(table, widths);
+}
+
+static void table_fit_widths(TFormTable *table, int *widths, int max_width) {
+    if (!table || !widths || max_width <= 0) {
+        return;
+    }
+    while (table_rule_width(table, widths) > max_width) {
+        int largest = -1;
+        for (int col = 0; col < table->column_count; col++) {
+            if (widths[col] > 1 && (largest < 0 || widths[col] > widths[largest])) {
+                largest = col;
+            }
+        }
+        if (largest < 0) {
+            break;
+        }
+        widths[largest]--;
+    }
+}
+
+static void draw_utf8_repeat(WINDOW *win, const char *text, int count) {
+    if (!win || !text || count <= 0) {
+        return;
+    }
+    for (int i = 0; i < count; i++) {
+        waddstr(win, text);
+    }
+}
+
+static void draw_table_rule(
+    WINDOW *win,
+    int y,
+    int x,
+    int max_width,
+    TFormTable *table,
+    const int *widths,
+    const char *left,
+    const char *mid,
+    const char *right,
+    const char *fill,
+    int attr,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !table || !widths || y < clip_top || y >= clip_bottom || max_width <= 0) {
+        return;
+    }
+    wattron(win, attr);
+    wmove(win, y, x);
+    if (table->show_lines) {
+        waddstr(win, left);
+        for (int col = 0; col < table->column_count; col++) {
+            draw_utf8_repeat(win, fill, widths[col] + 2);
+            waddstr(win, col == table->column_count - 1 ? right : mid);
+        }
+    } else {
+        waddstr(win, left);
+        draw_utf8_repeat(win, fill, table_inner_width_from_columns(table, widths) - 2);
+        waddstr(win, right);
+    }
+    wattroff(win, attr);
+}
+
+static void draw_table_title(
+    WINDOW *win,
+    int y,
+    int x,
+    int table_width,
+    TFormTable *table,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !table || !table->title.value || !*table->title.value ||
+        table_width <= 0 || y < clip_top || y >= clip_bottom) {
+        return;
+    }
+    int title_width = ghostcode_ui_text_width(table->title.value);
+    if (title_width > table_width) {
+        title_width = table_width;
+    }
+    int title_x = aligned_text_x(x, table_width, title_width, table->title.align, 0);
+    int attr = text_attr(&table->title, label_default_attr());
+    wattron(win, attr);
+    wmove(win, y, title_x);
+    ghostcode_ui_text_addstr_width(win, table->title.value, title_width);
+    wattroff(win, attr);
+}
+
+static void draw_table_top_rule(
+    WINDOW *win,
+    int y,
+    int x,
+    int max_width,
+    TFormTable *table,
+    const int *widths,
+    int attr,
+    int title_attr,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !table || !widths || y < clip_top || y >= clip_bottom || max_width <= 0) {
+        return;
+    }
+    (void)title_attr;
+    wattron(win, attr);
+    wmove(win, y, x);
+    if (table->show_lines) {
+        waddstr(win, "┏");
+        for (int col = 0; col < table->column_count; col++) {
+            draw_utf8_repeat(win, "━", widths[col] + 2);
+            waddstr(win, col == table->column_count - 1 ? "┓" : "┳");
+        }
+    } else {
+        int width = table_inner_width_from_columns(table, widths);
+        waddstr(win, "┏");
+        draw_utf8_repeat(win, "━", width - 2);
+        waddstr(win, "┓");
+    }
+    wattroff(win, attr);
+}
+
+static void draw_table_cells(
+    WINDOW *win,
+    int y,
+    int x,
+    int max_width,
+    TFormTable *table,
+    const int *widths,
+    const char **cells,
+    const char *left,
+    const char *mid,
+    const char *right,
+    int attr,
+    int cell_attr,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !table || !widths || !cells || y < clip_top || y >= clip_bottom || max_width <= 0) {
+        return;
+    }
+    wattron(win, attr);
+    wmove(win, y, x);
+    waddstr(win, left);
+    wattroff(win, attr);
+    if (table->show_lines) {
+        for (int col = 0; col < table->column_count; col++) {
+            waddch(win, ' ');
+            wattron(win, cell_attr);
+            const char *text = cells[col] ? cells[col] : "";
+            int visible = ghostcode_ui_text_addstr_width(win, text, widths[col]);
+            wattroff(win, cell_attr);
+            for (int pad = visible; pad < widths[col] + 1; pad++) {
+                waddch(win, ' ');
+            }
+            wattron(win, attr);
+            waddstr(win, col == table->column_count - 1 ? right : mid);
+            wattroff(win, attr);
+        }
+    } else {
+        int content_width = table_inner_width_from_columns(table, widths) - 4;
+        int used = 0;
+        waddch(win, ' ');
+        for (int col = 0; col < table->column_count; col++) {
+            if (col > 0) {
+                waddstr(win, "  ");
+                used += 2;
+            }
+            wattron(win, cell_attr);
+            const char *text = cells[col] ? cells[col] : "";
+            int visible = ghostcode_ui_text_addstr_width(win, text, widths[col]);
+            wattroff(win, cell_attr);
+            used += visible;
+            for (int pad = visible; pad < widths[col]; pad++) {
+                waddch(win, ' ');
+                used++;
+            }
+        }
+        while (used < content_width) {
+            waddch(win, ' ');
+            used++;
+        }
+        waddch(win, ' ');
+        wattron(win, attr);
+        waddstr(win, right);
+        wattroff(win, attr);
+    }
+}
+
+static void draw_table(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormTable *table,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !table || table->column_count <= 0 || width <= 0) {
+        return;
+    }
+    int *widths = calloc((size_t)table->column_count, sizeof(int));
+    if (!widths) {
+        return;
+    }
+    table_column_widths(table, widths);
+    table_fit_widths(table, widths, width);
+    int table_width = table_inner_width_from_columns(table, widths);
+    if (table_width > width) {
+        table_width = width;
+    }
+    int draw_x = aligned_text_x(x, width, table_width, TFORM_LABEL_ALIGN_LEFT, 0);
+    TFormTextStyle border_style;
+    tform_text_style_init(&border_style);
+    border_style.color = table->color;
+    int border_attr = text_attr(&border_style, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER));
+    int header_attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL) | A_BOLD;
+    int row_attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL);
+    int row = y + table->padding;
+    if (table->title.value && *table->title.value) {
+        draw_table_title(win, row++, draw_x, table_width, table, clip_top, clip_bottom);
+    }
+    draw_table_top_rule(win, row++, draw_x, width, table, widths, border_attr, header_attr, clip_top, clip_bottom);
+    draw_table_cells(
+        win,
+        row++,
+        draw_x,
+        width,
+        table,
+        widths,
+        (const char **)table->columns,
+        "┃",
+        "┃",
+        "┃",
+        border_attr,
+        header_attr,
+        clip_top,
+        clip_bottom
+    );
+    if (table->show_lines) {
+        draw_table_rule(win, row++, draw_x, width, table, widths, "┡", "╇", "┩", "━", border_attr, clip_top, clip_bottom);
+    }
+    for (int i = 0; i < table->row_count; i++) {
+        if (table->rows[i].is_separator) {
+            if (table->show_lines) {
+                draw_table_rule(win, row++, draw_x, width, table, widths, "├", "┼", "┤", "─", border_attr, clip_top, clip_bottom);
+            }
+            continue;
+        }
+        draw_table_cells(
+            win,
+            row++,
+            draw_x,
+            width,
+            table,
+            widths,
+            (const char **)table->rows[i].cells,
+            "│",
+            "│",
+            "│",
+            border_attr,
+            row_attr,
+            clip_top,
+            clip_bottom
+        );
+    }
+    draw_table_rule(win, row, draw_x, width, table, widths, "└", "┴", "┘", "─", border_attr, clip_top, clip_bottom);
+    free(widths);
+}
+
+static void draw_section_box(WINDOW *win, int y, int x, int width, int height, int clip_top, int clip_bottom) {
+    if (!win || width < 2 || height < 2) {
+        return;
+    }
+    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER);
+    wattron(win, attr);
+    if (y >= clip_top && y < clip_bottom) {
+        mvwaddch(win, y, x, ACS_ULCORNER);
+        mvwhline(win, y, x + 1, ACS_HLINE, width - 2);
+        mvwaddch(win, y, x + width - 1, ACS_URCORNER);
+    }
+    for (int row = y + 1; row < y + height - 1; row++) {
+        if (row >= clip_top && row < clip_bottom) {
+            mvwaddch(win, row, x, ACS_VLINE);
+            mvwaddch(win, row, x + width - 1, ACS_VLINE);
+        }
+    }
+    int bottom = y + height - 1;
+    if (bottom >= clip_top && bottom < clip_bottom) {
+        mvwaddch(win, bottom, x, ACS_LLCORNER);
+        mvwhline(win, bottom, x + 1, ACS_HLINE, width - 2);
+        mvwaddch(win, bottom, x + width - 1, ACS_LRCORNER);
+    }
+    wattroff(win, attr);
+}
+
+static void draw_section(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    int height,
+    TFormField *field,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !field || width <= 0 || height <= 0) {
+        return;
+    }
+    int inner_x = x;
+    int inner_y = y;
+    int inner_width = width;
+    int inner_height = height;
+    if (field->section_boxed) {
+        draw_section_box(win, y, x, width, height, clip_top, clip_bottom);
+        inner_x += 2;
+        inner_y += 1;
+        inner_width -= 4;
+        inner_height -= 2;
+    }
+    if (inner_width < 1 || inner_height < 1) {
+        return;
+    }
+    int row = inner_y;
+    for (int i = 0; i < field->section_element_count; i++) {
+        if (i > 0) {
+            row++;
+        }
+        TFormSectionElement *element = &field->section_elements[i];
+        int element_height = section_element_height(element, inner_width);
+        if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+            draw_table(win, row, inner_x, inner_width, &element->table, clip_top, clip_bottom);
+        } else {
+            draw_text_section(
+                win,
+                row,
+                inner_x,
+                inner_width,
+                element_height,
+                &element->text,
+                element->text.wrap_text,
+                clip_top,
+                clip_bottom
+            );
+        }
+        row += element_height;
+    }
+}
+
 static void draw_selection_pointer(WINDOW *win, int field_y, int field_height, int form_x, int body_h) {
     if (!win || body_h <= 1) {
         return;
@@ -1385,6 +1842,19 @@ static void draw_form(
                 content_height,
                 &form->fields[index].label,
                 form->fields[index].wrap_text,
+                1,
+                body_h
+            );
+            continue;
+        }
+        if (form->fields[index].kind == TFORM_FIELD_SECTION) {
+            draw_section(
+                main_panel->win,
+                content_y,
+                form_x,
+                form_width,
+                content_height,
+                &form->fields[index],
                 1,
                 body_h
             );

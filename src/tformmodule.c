@@ -19,6 +19,9 @@ PyMODINIT_FUNC PyInit__tform(void) {
     if (PyType_Ready(&TFormFilePickerType) < 0) {
         return NULL;
     }
+    if (PyType_Ready(&TFormTableType) < 0) {
+        return NULL;
+    }
 
     PyObject *module = PyModule_Create(&tform_module);
     if (!module) {
@@ -40,6 +43,12 @@ PyMODINIT_FUNC PyInit__tform(void) {
     Py_INCREF(&TFormFilePickerType);
     if (PyModule_AddObject(module, "FilePicker", (PyObject *)&TFormFilePickerType) < 0) {
         Py_DECREF(&TFormFilePickerType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormTableType);
+    if (PyModule_AddObject(module, "Table", (PyObject *)&TFormTableType) < 0) {
+        Py_DECREF(&TFormTableType);
         Py_DECREF(module);
         return NULL;
     }

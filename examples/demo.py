@@ -5,22 +5,36 @@ from __future__ import annotations
 
 import json
 
-from tform import FilePicker, Form, Text
+from tform import FilePicker, Form, Table, Text
 
 
 def build_form() -> Form:
     form = Form(title="Developer Settings")
     file_picker = FilePicker(mode="file", start_dir=".")
     directory_picker = FilePicker(mode="directory", start_dir=".")
+    command_table = Table(
+        title=Text("Command Defaults", align="center", bold=True, color="yellow"),
+        color="cyan",
+        padding=1,
+    )
+    command_table.add_column("Command")
+    command_table.add_column("Default")
+    command_table.add_column("Purpose")
+    command_table.add_row("Build", "python3 setup.py build_ext --inplace", "Compile extension")
+    command_table.add_row("Demo", "python3 examples/demo.py", "Manual smoke")
+    command_table.add_separator()
+    command_table.add_row("Check", "python3 -m py_compile examples/demo.py", "Syntax check")
 
-    form.add_text_section(
+    form.add_section(
         Text(
             "Configure local project defaults, editor behavior, and development tooling for this workspace.",
             align="center",
             color="cyan",
             bold=True,
             wrap_text=True,
-        )
+        ),
+        command_table,
+        boxed=True,
     )
     form.add_separator(Text("Workspace", color="yellow", bold=True), color="cyan")
 

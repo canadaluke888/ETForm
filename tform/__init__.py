@@ -1,3 +1,3 @@
-from ._tform import FilePicker, Form, Text
+from ._tform import FilePicker, Form, Table, Text
 
-__all__ = ["FilePicker", "Form", "Text"]
+__all__ = ["FilePicker", "Form", "Table", "Text"]

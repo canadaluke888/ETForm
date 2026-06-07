@@ -68,6 +68,249 @@ static void trim_in_place(char *value) {
     }
 }
 
+static int parse_label_object(PyObject *label_obj, int allow_empty, TFormTextStyle *style);
+static int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value);
+
+void tform_table_init(TFormTable *table) {
+    if (!table) {
+        return;
+    }
+    memset(table, 0, sizeof(*table));
+    tform_text_style_init(&table->title);
+    table->show_lines = 1;
+    table->color = TFORM_TEXT_COLOR_DEFAULT;
+    table->padding = TFORM_DEFAULT_PADDING;
+}
+
+void tform_table_free(TFormTable *table) {
+    if (!table) {
+        return;
+    }
+    tform_text_style_free(&table->title);
+    for (int i = 0; i < table->column_count; i++) {
+        free(table->columns[i]);
+    }
+    free(table->columns);
+    for (int row = 0; row < table->row_count; row++) {
+        if (!table->rows[row].is_separator) {
+            for (int col = 0; col < table->column_count; col++) {
+                free(table->rows[row].cells[col]);
+            }
+            free(table->rows[row].cells);
+        }
+    }
+    free(table->rows);
+    tform_table_init(table);
+}
+
+static int tform_table_set_title(TFormTable *table, const TFormTextStyle *title) {
+    if (!table) {
+        return -1;
+    }
+    TFormTextStyle copy;
+    if (tform_text_style_copy(&copy, title, title && title->value ? title->value : "") < 0) {
+        return -1;
+    }
+    tform_text_style_free(&table->title);
+    table->title = copy;
+    return 0;
+}
+
+static int tform_table_ensure_column_capacity(TFormTable *table, int needed) {
+    if (!table || needed < 0) {
+        return -1;
+    }
+    if (table->column_capacity >= needed) {
+        return 0;
+    }
+    int next_capacity = table->column_capacity ? table->column_capacity * 2 : 4;
+    while (next_capacity < needed) {
+        next_capacity *= 2;
+    }
+    char **next = realloc(table->columns, (size_t)next_capacity * sizeof(char *));
+    if (!next) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    for (int i = table->column_capacity; i < next_capacity; i++) {
+        next[i] = NULL;
+    }
+    table->columns = next;
+    table->column_capacity = next_capacity;
+    return 0;
+}
+
+static int tform_table_ensure_row_capacity(TFormTable *table, int needed) {
+    if (!table || needed < 0) {
+        return -1;
+    }
+    if (table->row_capacity >= needed) {
+        return 0;
+    }
+    int next_capacity = table->row_capacity ? table->row_capacity * 2 : 8;
+    while (next_capacity < needed) {
+        next_capacity *= 2;
+    }
+    TFormTableRow *next = realloc(table->rows, (size_t)next_capacity * sizeof(TFormTableRow));
+    if (!next) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    memset(next + table->row_capacity, 0, (size_t)(next_capacity - table->row_capacity) * sizeof(TFormTableRow));
+    table->rows = next;
+    table->row_capacity = next_capacity;
+    return 0;
+}
+
+static int tform_table_add_column_value(TFormTable *table, const char *name) {
+    if (!table || !name || !*name) {
+        PyErr_SetString(PyExc_ValueError, "column name must not be empty");
+        return -1;
+    }
+    if (table->row_count > 0) {
+        PyErr_SetString(PyExc_ValueError, "columns must be added before rows or separators");
+        return -1;
+    }
+    if (tform_table_ensure_column_capacity(table, table->column_count + 1) < 0) {
+        return -1;
+    }
+    char *copy = tform_strdup(name);
+    if (!copy) {
+        return -1;
+    }
+    table->columns[table->column_count++] = copy;
+    return 0;
+}
+
+static int tform_table_add_row_values(TFormTable *table, PyObject *args) {
+    if (!table || !args) {
+        return -1;
+    }
+    if (table->column_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "columns must be added before rows");
+        return -1;
+    }
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    if (count != table->column_count) {
+        PyErr_SetString(PyExc_ValueError, "row cell count must match column count");
+        return -1;
+    }
+    char **cells = calloc((size_t)table->column_count, sizeof(char *));
+    if (!cells) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    for (int i = 0; i < table->column_count; i++) {
+        PyObject *item = PyTuple_GET_ITEM(args, i);
+        const char *cell = PyUnicode_AsUTF8(item);
+        if (!cell) {
+            for (int j = 0; j < i; j++) {
+                free(cells[j]);
+            }
+            free(cells);
+            PyErr_SetString(PyExc_TypeError, "table cells must be str");
+            return -1;
+        }
+        cells[i] = tform_strdup(cell);
+        if (!cells[i]) {
+            for (int j = 0; j < i; j++) {
+                free(cells[j]);
+            }
+            free(cells);
+            return -1;
+        }
+    }
+    if (tform_table_ensure_row_capacity(table, table->row_count + 1) < 0) {
+        for (int i = 0; i < table->column_count; i++) {
+            free(cells[i]);
+        }
+        free(cells);
+        return -1;
+    }
+    TFormTableRow *row = &table->rows[table->row_count++];
+    row->is_separator = 0;
+    row->cells = cells;
+    return 0;
+}
+
+static int tform_table_add_separator_value(TFormTable *table) {
+    if (!table) {
+        return -1;
+    }
+    if (table->column_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "columns must be added before separators");
+        return -1;
+    }
+    if (tform_table_ensure_row_capacity(table, table->row_count + 1) < 0) {
+        return -1;
+    }
+    TFormTableRow *row = &table->rows[table->row_count++];
+    row->is_separator = 1;
+    row->cells = NULL;
+    return 0;
+}
+
+int tform_table_copy(TFormTable *dest, const TFormTable *src) {
+    if (!dest || !src) {
+        return -1;
+    }
+    tform_table_init(dest);
+    if (tform_table_set_title(dest, &src->title) < 0) {
+        return -1;
+    }
+    dest->show_lines = src->show_lines;
+    dest->color = src->color;
+    dest->padding = src->padding;
+    for (int col = 0; col < src->column_count; col++) {
+        if (tform_table_add_column_value(dest, src->columns[col] ? src->columns[col] : "") < 0) {
+            tform_table_free(dest);
+            return -1;
+        }
+    }
+    for (int row = 0; row < src->row_count; row++) {
+        if (src->rows[row].is_separator) {
+            if (tform_table_add_separator_value(dest) < 0) {
+                tform_table_free(dest);
+                return -1;
+            }
+        } else {
+            PyObject *tuple = PyTuple_New(src->column_count);
+            if (!tuple) {
+                tform_table_free(dest);
+                return -1;
+            }
+            for (int col = 0; col < src->column_count; col++) {
+                PyObject *cell = PyUnicode_FromString(src->rows[row].cells[col] ? src->rows[row].cells[col] : "");
+                if (!cell) {
+                    Py_DECREF(tuple);
+                    tform_table_free(dest);
+                    return -1;
+                }
+                PyTuple_SET_ITEM(tuple, col, cell);
+            }
+            if (tform_table_add_row_values(dest, tuple) < 0) {
+                Py_DECREF(tuple);
+                tform_table_free(dest);
+                return -1;
+            }
+            Py_DECREF(tuple);
+        }
+    }
+    return 0;
+}
+
+static void tform_section_element_free(TFormSectionElement *element) {
+    if (!element) {
+        return;
+    }
+    if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+        tform_table_free(&element->table);
+    } else {
+        tform_text_style_free(&element->text);
+    }
+    memset(element, 0, sizeof(*element));
+}
+
 void tform_field_free(TFormField *field) {
     if (!field) {
         return;
@@ -91,6 +334,10 @@ void tform_field_free(TFormField *field) {
     }
     free(field->checkbox_options);
     free(field->checkbox_checked);
+    for (int i = 0; i < field->section_element_count; i++) {
+        tform_section_element_free(&field->section_elements[i]);
+    }
+    free(field->section_elements);
     memset(field, 0, sizeof(*field));
 }
 
@@ -377,6 +624,11 @@ typedef struct {
     char *start_dir;
 } TFormFilePickerObject;
 
+typedef struct {
+    PyObject_HEAD
+    TFormTable table;
+} TFormTableObject;
+
 static PyObject *Text_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
@@ -592,6 +844,144 @@ PyTypeObject TFormFilePickerType = {
     .tp_new = PyType_GenericNew,
 };
 
+static PyObject *Table_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    TFormTableObject *self = (TFormTableObject *)type->tp_alloc(type, 0);
+    if (!self) {
+        return NULL;
+    }
+    tform_table_init(&self->table);
+    return (PyObject *)self;
+}
+
+static int Table_init(TFormTableObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"title", "show_lines", "color", "padding", NULL};
+    PyObject *title_obj = NULL;
+    int show_lines = 1;
+    const char *color_text = "default";
+    PyObject *padding_obj = Py_None;
+    TFormTextColor color = TFORM_TEXT_COLOR_DEFAULT;
+    int padding = TFORM_DEFAULT_PADDING;
+    TFormTextStyle title_style;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OpsO", kwlist, &title_obj, &show_lines, &color_text, &padding_obj)) {
+        return -1;
+    }
+    if (parse_text_color(color_text, &color) < 0 || parse_padding(padding_obj, &padding) < 0) {
+        return -1;
+    }
+    if (title_obj) {
+        if (parse_label_object(title_obj, 1, &title_style) < 0) {
+            return -1;
+        }
+    } else {
+        tform_text_style_init(&title_style);
+        if (tform_text_style_set_value(&title_style, "") < 0) {
+            return -1;
+        }
+    }
+    tform_table_free(&self->table);
+    tform_table_init(&self->table);
+    if (tform_table_set_title(&self->table, &title_style) < 0) {
+        tform_text_style_free(&title_style);
+        return -1;
+    }
+    tform_text_style_free(&title_style);
+    self->table.show_lines = show_lines ? 1 : 0;
+    self->table.color = color;
+    self->table.padding = padding;
+    return 0;
+}
+
+static void Table_dealloc(TFormTableObject *self) {
+    tform_table_free(&self->table);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *Table_repr(TFormTableObject *self) {
+    return PyUnicode_FromFormat(
+        "Table(title='%s', columns=%d, rows=%d)",
+        self->table.title.value ? self->table.title.value : "",
+        self->table.column_count,
+        self->table.row_count
+    );
+}
+
+static PyObject *Table_add_column(TFormTableObject *self, PyObject *args) {
+    const char *name = NULL;
+    if (!PyArg_ParseTuple(args, "s", &name)) {
+        return NULL;
+    }
+    if (tform_table_add_column_value(&self->table, name) < 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *Table_add_row(TFormTableObject *self, PyObject *args) {
+    if (tform_table_add_row_values(&self->table, args) < 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *Table_add_separator(TFormTableObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (tform_table_add_separator_value(&self->table) < 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *Table_get_title(TFormTableObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_FromString(self->table.title.value ? self->table.title.value : "");
+}
+
+static PyObject *Table_get_show_lines(TFormTableObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->table.show_lines);
+}
+
+static PyObject *Table_get_color(TFormTableObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_FromString(color_name(self->table.color));
+}
+
+static PyObject *Table_get_padding(TFormTableObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->table.padding);
+}
+
+static PyMethodDef Table_methods[] = {
+    {"add_column", (PyCFunction)Table_add_column, METH_VARARGS, "Add a table column."},
+    {"add_row", (PyCFunction)Table_add_row, METH_VARARGS, "Add a table row."},
+    {"add_separator", (PyCFunction)Table_add_separator, METH_NOARGS, "Add a row separator."},
+    {NULL, NULL, 0, NULL},
+};
+
+static PyGetSetDef Table_getset[] = {
+    {"title", (getter)Table_get_title, NULL, "Table title.", NULL},
+    {"show_lines", (getter)Table_get_show_lines, NULL, "Whether inner grid lines are shown.", NULL},
+    {"color", (getter)Table_get_color, NULL, "Table border color.", NULL},
+    {"padding", (getter)Table_get_padding, NULL, "Table padding.", NULL},
+    {NULL, NULL, NULL, NULL, NULL},
+};
+
+PyTypeObject TFormTableType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.Table",
+    .tp_basicsize = sizeof(TFormTableObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)Table_dealloc,
+    .tp_repr = (reprfunc)Table_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Static table for form sections.",
+    .tp_methods = Table_methods,
+    .tp_getset = Table_getset,
+    .tp_init = (initproc)Table_init,
+    .tp_new = Table_new,
+};
+
 static int apply_tool(TFormField *field, PyObject *tool) {
     if (PyObject_TypeCheck(tool, &TFormFilePickerType)) {
         TFormFilePickerObject *picker = (TFormFilePickerObject *)tool;
@@ -673,6 +1063,81 @@ static int parse_label_object(
     style->color = TFORM_TEXT_COLOR_DEFAULT;
     style->wrap_text = 0;
     return 0;
+}
+
+static int tform_section_ensure_capacity(TFormField *field, int needed) {
+    if (!field || needed < 0) {
+        return -1;
+    }
+    if (field->section_element_capacity >= needed) {
+        return 0;
+    }
+    int next_capacity = field->section_element_capacity ? field->section_element_capacity * 2 : 4;
+    while (next_capacity < needed) {
+        next_capacity *= 2;
+    }
+    TFormSectionElement *next = realloc(field->section_elements, (size_t)next_capacity * sizeof(TFormSectionElement));
+    if (!next) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    memset(
+        next + field->section_element_capacity,
+        0,
+        (size_t)(next_capacity - field->section_element_capacity) * sizeof(TFormSectionElement)
+    );
+    field->section_elements = next;
+    field->section_element_capacity = next_capacity;
+    return 0;
+}
+
+static int tform_section_append_text(TFormField *field, const TFormTextStyle *style) {
+    if (!field || !style) {
+        return -1;
+    }
+    if (tform_section_ensure_capacity(field, field->section_element_count + 1) < 0) {
+        return -1;
+    }
+    TFormSectionElement *element = &field->section_elements[field->section_element_count];
+    memset(element, 0, sizeof(*element));
+    element->kind = TFORM_SECTION_ELEMENT_TEXT;
+    if (tform_text_style_copy(&element->text, style, style->value ? style->value : "") < 0) {
+        return -1;
+    }
+    field->section_element_count++;
+    return 0;
+}
+
+static int tform_section_append_table(TFormField *field, const TFormTable *table) {
+    if (!field || !table) {
+        return -1;
+    }
+    if (tform_section_ensure_capacity(field, field->section_element_count + 1) < 0) {
+        return -1;
+    }
+    TFormSectionElement *element = &field->section_elements[field->section_element_count];
+    memset(element, 0, sizeof(*element));
+    element->kind = TFORM_SECTION_ELEMENT_TABLE;
+    if (tform_table_copy(&element->table, table) < 0) {
+        return -1;
+    }
+    field->section_element_count++;
+    return 0;
+}
+
+static int tform_section_append_object(TFormField *field, PyObject *item) {
+    if (PyObject_TypeCheck(item, &TFormTableType)) {
+        TFormTableObject *table = (TFormTableObject *)item;
+        return tform_section_append_table(field, &table->table);
+    }
+    TFormTextStyle text_style;
+    if (parse_label_object(item, 1, &text_style) < 0) {
+        PyErr_SetString(PyExc_TypeError, "section items must be str, Text, or Table");
+        return -1;
+    }
+    int result = tform_section_append_text(field, &text_style);
+    tform_text_style_free(&text_style);
+    return result;
 }
 
 static PyObject *Form_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
@@ -802,6 +1267,56 @@ static PyObject *Form_add_text_section(PyObject *self_obj, PyObject *args, PyObj
     tform_text_style_init(&text_style);
     field->wrap_text = field->label.wrap_text;
     field->padding = padding;
+    Py_RETURN_NONE;
+}
+
+static PyObject *Form_add_section(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    TFormObject *self = (TFormObject *)self_obj;
+    int boxed = 0;
+    int padding = TFORM_DEFAULT_PADDING;
+    if (kwargs) {
+        PyObject *key;
+        PyObject *value;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(kwargs, &pos, &key, &value)) {
+            const char *name = PyUnicode_AsUTF8(key);
+            if (!name) {
+                return NULL;
+            }
+            if (strcmp(name, "boxed") == 0) {
+                int truth = PyObject_IsTrue(value);
+                if (truth < 0) {
+                    return NULL;
+                }
+                boxed = truth ? 1 : 0;
+            } else if (strcmp(name, "padding") == 0) {
+                if (parse_padding(value, &padding) < 0) {
+                    return NULL;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "add_section() got an unexpected keyword argument");
+                return NULL;
+            }
+        }
+    }
+    Py_ssize_t item_count = PyTuple_GET_SIZE(args);
+    if (item_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "section must contain at least one item");
+        return NULL;
+    }
+    TFormField *field = append_field(self, "", "", TFORM_FIELD_SECTION);
+    if (!field) {
+        return NULL;
+    }
+    field->padding = padding;
+    field->section_boxed = boxed;
+    for (Py_ssize_t i = 0; i < item_count; i++) {
+        if (tform_section_append_object(field, PyTuple_GET_ITEM(args, i)) < 0) {
+            self->field_count--;
+            tform_field_free(field);
+            return NULL;
+        }
+    }
     Py_RETURN_NONE;
 }
 
@@ -1399,6 +1914,7 @@ PyObject *tform_build_result(TFormObject *self) {
                 break;
             case TFORM_FIELD_TEXT_SECTION:
             case TFORM_FIELD_SEPARATOR:
+            case TFORM_FIELD_SECTION:
                 continue;
         }
         if (!value || PyDict_SetItemString(dict, field->key, value) < 0) {
@@ -1414,6 +1930,7 @@ PyObject *tform_build_result(TFormObject *self) {
 static PyMethodDef Form_methods[] = {
     {"add_text_input", (PyCFunction)Form_add_text, METH_VARARGS | METH_KEYWORDS, "Add a text input field."},
     {"add_optional_text_input", (PyCFunction)Form_add_optional_text, METH_VARARGS | METH_KEYWORDS, "Add an optional text input field."},
+    {"add_section", (PyCFunction)Form_add_section, METH_VARARGS | METH_KEYWORDS, "Add a static section."},
     {"add_text_section", (PyCFunction)Form_add_text_section, METH_VARARGS | METH_KEYWORDS, "Add static text to the form."},
     {"add_separator", (PyCFunction)Form_add_separator, METH_VARARGS | METH_KEYWORDS, "Add a visual separator."},
     {"add_bool_input", (PyCFunction)Form_add_bool, METH_VARARGS | METH_KEYWORDS, "Add a boolean input field."},
