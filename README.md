@@ -179,13 +179,12 @@ Supported modes are `file` and `directory`.
 ```python
 table = Table(
     title=Text("Command Defaults", align="center", bold=True, color="yellow"),
-    show_lines=True,
     color="cyan",
 )
 table.add_column("Command")
 table.add_column("Default")
 table.add_row("Build", "python3 setup.py build_ext --inplace")
-table.add_separator()
+table.add_separator_row(Text("Validation", color="yellow", dim=True))
 table.add_row("Demo", "python3 examples/demo.py")
 
 form.add_section(Text("Developer Settings", color="cyan", bold=True), table, boxed=True)
@@ -193,8 +192,11 @@ form.add_section(Text("Developer Settings", color="cyan", bold=True), table, box
 
 Rows must have the same number of cells as the table has columns. The table
 title accepts `str` or `Text`, renders above the table, and is aligned within
-the table bounds. `show_lines` keeps the outer table border and controls the
-inner grid lines.
+the table bounds. Tables keep an outer border by default and omit the inner
+grid. Set `show_lines=True` to draw row and column grid lines for headers and
+normal rows. Separators are always one full-width row without column dividers;
+they are blank by default, accept a plain string for left-aligned unstyled text,
+or accept `Text` for formatted and aligned separator text.
 
 ## Field Types
 

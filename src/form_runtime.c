@@ -858,6 +858,30 @@ static int table_inner_width_from_columns(TFormTable *table, const int *widths) 
     return width;
 }
 
+static int table_draws_body_rule_after(TFormTable *table, int row_index) {
+    if (!table || !table->show_lines || row_index < 0 || row_index + 1 >= table->row_count) {
+        return 0;
+    }
+    if (table->rows[row_index].is_separator || table->rows[row_index + 1].is_separator) {
+        return 0;
+    }
+    return 1;
+}
+
+static int table_draws_separator_rule_before(TFormTable *table, int row_index) {
+    if (!table || !table->show_lines || row_index <= 0 || row_index >= table->row_count) {
+        return 0;
+    }
+    return table->rows[row_index].is_separator && !table->rows[row_index - 1].is_separator;
+}
+
+static int table_draws_separator_rule_after(TFormTable *table, int row_index) {
+    if (!table || !table->show_lines || row_index < 0 || row_index + 1 >= table->row_count) {
+        return 0;
+    }
+    return table->rows[row_index].is_separator && !table->rows[row_index + 1].is_separator;
+}
+
 static int table_display_height(TFormTable *table) {
     int padding = table && table->padding >= 0 ? table->padding : TFORM_DEFAULT_PADDING;
     if (!table || table->column_count <= 0) {
@@ -868,11 +892,14 @@ static int table_display_height(TFormTable *table) {
         height++;
     }
     for (int row = 0; row < table->row_count; row++) {
-        if (table->rows[row].is_separator) {
-            if (table->show_lines) {
-                height++;
-            }
-        } else {
+        if (table_draws_separator_rule_before(table, row)) {
+            height++;
+        }
+        height++;
+        if (table_draws_body_rule_after(table, row)) {
+            height++;
+        }
+        if (table_draws_separator_rule_after(table, row)) {
             height++;
         }
     }
@@ -1540,6 +1567,49 @@ static void draw_table_rule(
     wattroff(win, attr);
 }
 
+static void draw_table_full_rule(
+    WINDOW *win,
+    int y,
+    int x,
+    int table_width,
+    TFormTable *table,
+    const int *widths,
+    const char *left,
+    const char *join,
+    const char *right,
+    const char *fill,
+    int attr,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || y < clip_top || y >= clip_bottom || table_width <= 1) {
+        return;
+    }
+    wattron(win, attr);
+    wmove(win, y, x);
+    waddstr(win, left);
+    int column_index = 0;
+    int next_join = -1;
+    if (table && widths && table->show_lines && table->column_count > 1) {
+        next_join = widths[0] + 3;
+    }
+    for (int pos = 1; pos < table_width - 1; pos++) {
+        if (pos == next_join) {
+            waddstr(win, join);
+            column_index++;
+            if (column_index < table->column_count - 1) {
+                next_join += widths[column_index] + 3;
+            } else {
+                next_join = -1;
+            }
+        } else {
+            waddstr(win, fill);
+        }
+    }
+    waddstr(win, right);
+    wattroff(win, attr);
+}
+
 static void draw_table_title(
     WINDOW *win,
     int y,
@@ -1665,6 +1735,55 @@ static void draw_table_cells(
     }
 }
 
+static void draw_table_separator_row(
+    WINDOW *win,
+    int y,
+    int x,
+    int table_width,
+    const TFormTextStyle *label,
+    int border_attr,
+    int row_attr,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || table_width <= 3 || y < clip_top || y >= clip_bottom) {
+        return;
+    }
+    wattron(win, border_attr);
+    wmove(win, y, x);
+    waddstr(win, "│");
+    wattroff(win, border_attr);
+
+    int content_width = table_width - 4;
+    if (content_width < 0) {
+        content_width = 0;
+    }
+    waddch(win, ' ');
+    for (int col = 0; col < content_width; col++) {
+        waddch(win, ' ');
+    }
+    waddch(win, ' ');
+
+    wattron(win, border_attr);
+    waddstr(win, "│");
+    wattroff(win, border_attr);
+
+    const char *text = label && label->value ? label->value : "";
+    if (!*text || content_width <= 0) {
+        return;
+    }
+    int text_width = ghostcode_ui_text_width(text);
+    if (text_width > content_width) {
+        text_width = content_width;
+    }
+    int text_x = aligned_text_x(x + 2, content_width, text_width, label ? label->align : TFORM_LABEL_ALIGN_LEFT, 0);
+    int attr = text_attr(label, row_attr);
+    wattron(win, attr);
+    wmove(win, y, text_x);
+    ghostcode_ui_text_addstr_width(win, text, text_width);
+    wattroff(win, attr);
+}
+
 static void draw_table(
     WINDOW *win,
     int y,
@@ -1720,8 +1839,50 @@ static void draw_table(
     }
     for (int i = 0; i < table->row_count; i++) {
         if (table->rows[i].is_separator) {
-            if (table->show_lines) {
-                draw_table_rule(win, row++, draw_x, width, table, widths, "├", "┼", "┤", "─", border_attr, clip_top, clip_bottom);
+            if (table_draws_separator_rule_before(table, i)) {
+                draw_table_full_rule(
+                    win,
+                    row++,
+                    draw_x,
+                    table_width,
+                    table,
+                    widths,
+                    "├",
+                    "┴",
+                    "┤",
+                    "─",
+                    border_attr,
+                    clip_top,
+                    clip_bottom
+                );
+            }
+            draw_table_separator_row(
+                win,
+                row++,
+                draw_x,
+                table_width,
+                &table->rows[i].separator,
+                border_attr,
+                row_attr,
+                clip_top,
+                clip_bottom
+            );
+            if (table_draws_separator_rule_after(table, i)) {
+                draw_table_full_rule(
+                    win,
+                    row++,
+                    draw_x,
+                    table_width,
+                    table,
+                    widths,
+                    "├",
+                    "┬",
+                    "┤",
+                    "─",
+                    border_attr,
+                    clip_top,
+                    clip_bottom
+                );
             }
             continue;
         }
@@ -1741,6 +1902,9 @@ static void draw_table(
             clip_top,
             clip_bottom
         );
+        if (table_draws_body_rule_after(table, i)) {
+            draw_table_rule(win, row++, draw_x, width, table, widths, "├", "┼", "┤", "─", border_attr, clip_top, clip_bottom);
+        }
     }
     draw_table_rule(win, row, draw_x, width, table, widths, "└", "┴", "┘", "─", border_attr, clip_top, clip_bottom);
     free(widths);

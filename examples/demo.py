@@ -23,7 +23,7 @@ def build_form() -> Form:
     command_table.add_column("Purpose")
     command_table.add_row("Build", "python3 setup.py build_ext --inplace", "Compile extension")
     command_table.add_row("Demo", "python3 examples/demo.py", "Manual smoke")
-    command_table.add_separator()
+    command_table.add_separator_row(Text("Validation", color="yellow", dim=True, align="center"))
     command_table.add_row("Check", "python3 -m py_compile examples/demo.py", "Syntax check")
 
     form.add_section(

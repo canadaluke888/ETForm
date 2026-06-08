@@ -58,6 +58,7 @@ typedef struct {
 typedef struct {
     int is_separator;
     char **cells;
+    TFormTextStyle separator;
 } TFormTableRow;
 
 typedef struct {

@@ -69,7 +69,7 @@ class Table:
     def __init__(
         self,
         title: Label = "",
-        show_lines: bool = True,
+        show_lines: bool = False,
         color: TextColor = "default",
         padding: int = 1,
     ) -> None: ...
@@ -90,7 +90,7 @@ class Table:
 
     def add_row(self, *cells: str) -> None: ...
 
-    def add_separator(self) -> None: ...
+    def add_separator_row(self, label: Label = "") -> None: ...
 
 
 class Form:

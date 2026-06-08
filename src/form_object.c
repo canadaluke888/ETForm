@@ -77,7 +77,7 @@ void tform_table_init(TFormTable *table) {
     }
     memset(table, 0, sizeof(*table));
     tform_text_style_init(&table->title);
-    table->show_lines = 1;
+    table->show_lines = 0;
     table->color = TFORM_TEXT_COLOR_DEFAULT;
     table->padding = TFORM_DEFAULT_PADDING;
 }
@@ -97,6 +97,8 @@ void tform_table_free(TFormTable *table) {
                 free(table->rows[row].cells[col]);
             }
             free(table->rows[row].cells);
+        } else {
+            tform_text_style_free(&table->rows[row].separator);
         }
     }
     free(table->rows);
@@ -233,7 +235,7 @@ static int tform_table_add_row_values(TFormTable *table, PyObject *args) {
     return 0;
 }
 
-static int tform_table_add_separator_value(TFormTable *table) {
+static int tform_table_add_separator_value(TFormTable *table, const TFormTextStyle *label) {
     if (!table) {
         return -1;
     }
@@ -247,6 +249,11 @@ static int tform_table_add_separator_value(TFormTable *table) {
     TFormTableRow *row = &table->rows[table->row_count++];
     row->is_separator = 1;
     row->cells = NULL;
+    if (tform_text_style_copy(&row->separator, label, label && label->value ? label->value : "") < 0) {
+        table->row_count--;
+        memset(row, 0, sizeof(*row));
+        return -1;
+    }
     return 0;
 }
 
@@ -269,7 +276,7 @@ int tform_table_copy(TFormTable *dest, const TFormTable *src) {
     }
     for (int row = 0; row < src->row_count; row++) {
         if (src->rows[row].is_separator) {
-            if (tform_table_add_separator_value(dest) < 0) {
+            if (tform_table_add_separator_value(dest, &src->rows[row].separator) < 0) {
                 tform_table_free(dest);
                 return -1;
             }
@@ -943,7 +950,7 @@ static PyObject *Table_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 static int Table_init(TFormTableObject *self, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {"title", "show_lines", "color", "padding", NULL};
     PyObject *title_obj = NULL;
-    int show_lines = 1;
+    int show_lines = 0;
     const char *color_text = "default";
     PyObject *padding_obj = Py_None;
     TFormTextColor color = TFORM_TEXT_COLOR_DEFAULT;
@@ -1010,10 +1017,27 @@ static PyObject *Table_add_row(TFormTableObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-static PyObject *Table_add_separator(TFormTableObject *self, PyObject *Py_UNUSED(ignored)) {
-    if (tform_table_add_separator_value(&self->table) < 0) {
+static PyObject *Table_add_separator_row(TFormTableObject *self, PyObject *args) {
+    PyObject *label_obj = NULL;
+    TFormTextStyle label_style;
+    if (!PyArg_ParseTuple(args, "|O", &label_obj)) {
         return NULL;
     }
+    if (label_obj) {
+        if (parse_label_object(label_obj, 1, &label_style) < 0) {
+            return NULL;
+        }
+    } else {
+        tform_text_style_init(&label_style);
+        if (tform_text_style_set_value(&label_style, "") < 0) {
+            return NULL;
+        }
+    }
+    if (tform_table_add_separator_value(&self->table, &label_style) < 0) {
+        tform_text_style_free(&label_style);
+        return NULL;
+    }
+    tform_text_style_free(&label_style);
     Py_RETURN_NONE;
 }
 
@@ -1040,7 +1064,7 @@ static PyObject *Table_get_padding(TFormTableObject *self, void *closure) {
 static PyMethodDef Table_methods[] = {
     {"add_column", (PyCFunction)Table_add_column, METH_VARARGS, "Add a table column."},
     {"add_row", (PyCFunction)Table_add_row, METH_VARARGS, "Add a table row."},
-    {"add_separator", (PyCFunction)Table_add_separator, METH_NOARGS, "Add a row separator."},
+    {"add_separator_row", (PyCFunction)Table_add_separator_row, METH_VARARGS, "Add a separator row."},
     {NULL, NULL, 0, NULL},
 };
 
