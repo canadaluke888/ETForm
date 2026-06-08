@@ -17,6 +17,7 @@ class Text:
         bold: bool = False,
         color: TextColor = "default",
         wrap_text: bool = False,
+        italicized: bool = False,
     ) -> None: ...
 
     @property
@@ -27,6 +28,9 @@ class Text:
 
     @property
     def bold(self) -> bool: ...
+
+    @property
+    def italicized(self) -> bool: ...
 
     @property
     def color(self) -> TextColor: ...
@@ -81,18 +85,7 @@ class Form:
         key: str,
         label: Label,
         default: str = "",
-        description: str = "",
-        field_color: TextColor = "default",
-        wrap_text: bool = False,
-        tools: FilePicker | Sequence[FilePicker] | None = None,
-        padding: int = 1,
-    ) -> None: ...
-
-    def add_optional_text_input(
-        self,
-        key: str,
-        label: Label,
-        default: str = "",
+        placeholder: Label = "",
         description: str = "",
         field_color: TextColor = "default",
         wrap_text: bool = False,

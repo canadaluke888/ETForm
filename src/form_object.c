@@ -320,6 +320,8 @@ void tform_field_free(TFormField *field) {
     free(field->description);
     free(field->file_picker_start_dir);
     free(field->text_value);
+    free(field->default_value);
+    tform_text_style_free(&field->placeholder);
     for (int i = 0; i < field->choice_count; i++) {
         free(field->choices[i]);
     }
@@ -348,6 +350,7 @@ void tform_text_style_init(TFormTextStyle *style) {
     style->value = NULL;
     style->align = TFORM_LABEL_ALIGN_LEFT;
     style->bold = 0;
+    style->italicized = 0;
     style->color = TFORM_TEXT_COLOR_DEFAULT;
     style->wrap_text = 0;
 }
@@ -384,6 +387,7 @@ static int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src
     if (src) {
         dest->align = src->align;
         dest->bold = src->bold;
+        dest->italicized = src->italicized;
         dest->color = src->color;
         dest->wrap_text = src->wrap_text;
     }
@@ -497,6 +501,7 @@ static TFormField *append_field(
     TFormField *field = &self->fields[self->field_count];
     memset(field, 0, sizeof(*field));
     tform_text_style_init(&field->label);
+    tform_text_style_init(&field->placeholder);
     tform_string_list_init(&field->list_value);
     field->padding = TFORM_DEFAULT_PADDING;
     field->key = tform_strdup(key);
@@ -641,15 +646,16 @@ static PyObject *Text_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) 
 }
 
 static int Text_init(TFormTextObject *self, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {"value", "align", "bold", "color", "wrap_text", NULL};
+    static char *kwlist[] = {"value", "align", "bold", "color", "wrap_text", "italicized", NULL};
     const char *value = NULL;
     const char *align_text = "left";
     int bold = 0;
     const char *color_text = "default";
     int wrap_text = 0;
+    int italicized = 0;
     TFormLabelAlign align = TFORM_LABEL_ALIGN_LEFT;
     TFormTextColor color = TFORM_TEXT_COLOR_DEFAULT;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|spsp", kwlist, &value, &align_text, &bold, &color_text, &wrap_text)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|spspp", kwlist, &value, &align_text, &bold, &color_text, &wrap_text, &italicized)) {
         return -1;
     }
     if (parse_label_align(align_text, &align) < 0 || parse_text_color(color_text, &color) < 0) {
@@ -660,6 +666,7 @@ static int Text_init(TFormTextObject *self, PyObject *args, PyObject *kwargs) {
     }
     self->style.align = align;
     self->style.bold = bold ? 1 : 0;
+    self->style.italicized = italicized ? 1 : 0;
     self->style.color = color;
     self->style.wrap_text = wrap_text ? 1 : 0;
     return 0;
@@ -686,12 +693,13 @@ static PyObject *Text_repr(TFormTextObject *self) {
         return NULL;
     }
     PyObject *repr = PyUnicode_FromFormat(
-        "Text(%s, align='%s', bold=%s, color='%s', wrap_text=%s)",
+        "Text(%s, align='%s', bold=%s, color='%s', wrap_text=%s, italicized=%s)",
         repr_text,
         align_name(self->style.align),
         self->style.bold ? "True" : "False",
         color_name(self->style.color),
-        self->style.wrap_text ? "True" : "False"
+        self->style.wrap_text ? "True" : "False",
+        self->style.italicized ? "True" : "False"
     );
     Py_DECREF(value_repr);
     return repr;
@@ -712,6 +720,11 @@ static PyObject *Text_get_bold(TFormTextObject *self, void *closure) {
     return PyBool_FromLong(self->style.bold);
 }
 
+static PyObject *Text_get_italicized(TFormTextObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->style.italicized);
+}
+
 static PyObject *Text_get_color(TFormTextObject *self, void *closure) {
     (void)closure;
     return PyUnicode_FromString(color_name(self->style.color));
@@ -726,6 +739,7 @@ static PyGetSetDef Text_getset[] = {
     {"value", (getter)Text_get_value, NULL, "Text value.", NULL},
     {"align", (getter)Text_get_align, NULL, "Text alignment.", NULL},
     {"bold", (getter)Text_get_bold, NULL, "Whether the text is bold.", NULL},
+    {"italicized", (getter)Text_get_italicized, NULL, "Whether the text is italicized.", NULL},
     {"color", (getter)Text_get_color, NULL, "Text color.", NULL},
     {"wrap_text", (getter)Text_get_wrap_text, NULL, "Whether the text wraps.", NULL},
     {NULL, NULL, NULL, NULL, NULL},
@@ -1042,6 +1056,7 @@ static int parse_label_object(
         }
         style->align = text->style.align;
         style->bold = text->style.bold;
+        style->italicized = text->style.italicized;
         style->color = text->style.color;
         style->wrap_text = text->style.wrap_text;
         return 0;
@@ -1060,6 +1075,7 @@ static int parse_label_object(
     }
     style->align = TFORM_LABEL_ALIGN_LEFT;
     style->bold = 0;
+    style->italicized = 0;
     style->color = TFORM_TEXT_COLOR_DEFAULT;
     style->wrap_text = 0;
     return 0;
@@ -1174,11 +1190,13 @@ static void Form_dealloc(TFormObject *self) {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *Form_add_text_common(TFormObject *self, PyObject *args, PyObject *kwargs, TFormFieldKind kind) {
-    static char *kwlist[] = {"key", "label", "default", "description", "field_color", "wrap_text", "tools", "padding", NULL};
+static PyObject *Form_add_text(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    TFormObject *self = (TFormObject *)self_obj;
+    static char *kwlist[] = {"key", "label", "default", "placeholder", "description", "field_color", "wrap_text", "tools", "padding", NULL};
     const char *key = NULL;
     PyObject *label_obj = NULL;
     const char *default_value = "";
+    PyObject *placeholder_obj = NULL;
     const char *description = "";
     const char *field_color_text = "default";
     PyObject *wrap_text_obj = Py_False;
@@ -1187,8 +1205,21 @@ static PyObject *Form_add_text_common(TFormObject *self, PyObject *args, PyObjec
     TFormTextColor field_color = TFORM_TEXT_COLOR_DEFAULT;
     int padding = TFORM_DEFAULT_PADDING;
     TFormTextStyle label_style;
+    TFormTextStyle placeholder_style;
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "sO|sssOOO", kwlist, &key, &label_obj, &default_value, &description, &field_color_text, &wrap_text_obj, &tools_obj, &padding_obj
+            args,
+            kwargs,
+            "sO|sOssOOO",
+            kwlist,
+            &key,
+            &label_obj,
+            &default_value,
+            &placeholder_obj,
+            &description,
+            &field_color_text,
+            &wrap_text_obj,
+            &tools_obj,
+            &padding_obj
         )) {
         return NULL;
     }
@@ -1205,18 +1236,34 @@ static PyObject *Form_add_text_common(TFormObject *self, PyObject *args, PyObjec
     if (parse_label_object(label_obj, 0, &label_style) < 0) {
         return NULL;
     }
+    if (placeholder_obj && placeholder_obj != Py_None) {
+        if (parse_label_object(placeholder_obj, 1, &placeholder_style) < 0) {
+            tform_text_style_free(&label_style);
+            return NULL;
+        }
+    } else {
+        tform_text_style_init(&placeholder_style);
+        if (tform_text_style_set_value(&placeholder_style, "") < 0) {
+            tform_text_style_free(&label_style);
+            return NULL;
+        }
+    }
     int wrap_text = PyObject_IsTrue(wrap_text_obj);
     if (wrap_text < 0) {
         tform_text_style_free(&label_style);
+        tform_text_style_free(&placeholder_style);
         return NULL;
     }
-    TFormField *field = append_field(self, key, description, kind);
+    TFormField *field = append_field(self, key, description, TFORM_FIELD_TEXT);
     if (!field) {
         tform_text_style_free(&label_style);
+        tform_text_style_free(&placeholder_style);
         return NULL;
     }
     field->label = label_style;
     tform_text_style_init(&label_style);
+    field->placeholder = placeholder_style;
+    tform_text_style_init(&placeholder_style);
     field->field_color = field_color;
     field->wrap_text = wrap_text;
     field->padding = padding;
@@ -1225,21 +1272,14 @@ static PyObject *Form_add_text_common(TFormObject *self, PyObject *args, PyObjec
         tform_field_free(field);
         return NULL;
     }
-    field->text_value = tform_strdup(default_value);
-    if (!field->text_value) {
+    field->text_value = tform_strdup("");
+    field->default_value = tform_strdup(default_value);
+    if (!field->text_value || !field->default_value) {
         self->field_count--;
         tform_field_free(field);
         return NULL;
     }
     Py_RETURN_NONE;
-}
-
-static PyObject *Form_add_text(PyObject *self, PyObject *args, PyObject *kwargs) {
-    return Form_add_text_common((TFormObject *)self, args, kwargs, TFORM_FIELD_TEXT);
-}
-
-static PyObject *Form_add_optional_text(PyObject *self, PyObject *args, PyObject *kwargs) {
-    return Form_add_text_common((TFormObject *)self, args, kwargs, TFORM_FIELD_OPTIONAL_TEXT);
 }
 
 static PyObject *Form_add_text_section(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
@@ -1873,7 +1913,12 @@ PyObject *tform_build_result(TFormObject *self) {
         PyObject *value = NULL;
         switch (field->kind) {
             case TFORM_FIELD_TEXT:
-            case TFORM_FIELD_OPTIONAL_TEXT:
+                value = PyUnicode_FromString(
+                    field->text_value && *field->text_value
+                        ? field->text_value
+                        : field->default_value ? field->default_value : ""
+                );
+                break;
             case TFORM_FIELD_CHOICE:
                 value = PyUnicode_FromString(field->text_value ? field->text_value : "");
                 break;
@@ -1929,7 +1974,6 @@ PyObject *tform_build_result(TFormObject *self) {
 
 static PyMethodDef Form_methods[] = {
     {"add_text_input", (PyCFunction)Form_add_text, METH_VARARGS | METH_KEYWORDS, "Add a text input field."},
-    {"add_optional_text_input", (PyCFunction)Form_add_optional_text, METH_VARARGS | METH_KEYWORDS, "Add an optional text input field."},
     {"add_section", (PyCFunction)Form_add_section, METH_VARARGS | METH_KEYWORDS, "Add a static section."},
     {"add_text_section", (PyCFunction)Form_add_text_section, METH_VARARGS | METH_KEYWORDS, "Add static text to the form."},
     {"add_separator", (PyCFunction)Form_add_separator, METH_VARARGS | METH_KEYWORDS, "Add a visual separator."},

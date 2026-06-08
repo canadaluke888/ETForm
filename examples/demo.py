@@ -42,6 +42,7 @@ def build_form() -> Form:
         key="project_name",
         label=Text("Project Name", align="center", bold=True, color="cyan"),
         default="TForm",
+        placeholder=Text("TForm", align="center", color="blue", italicized=True),
         description="Display name used in local development prompts and generated output.",
         field_color="cyan",
     )
@@ -50,6 +51,7 @@ def build_form() -> Form:
         key="workspace_root",
         label=Text("Workspace Root", align="right", color="green"),
         default=".",
+        placeholder=Text("Select workspace root", align="right", color="green", italicized=True),
         description="Root directory for source, tests, and generated artifacts.",
         field_color="green",
         tools=directory_picker,
@@ -59,15 +61,17 @@ def build_form() -> Form:
         key="config_file",
         label=Text("Config File", color="cyan"),
         default="pyproject.toml",
+        placeholder=Text("Select config file", color="cyan", italicized=True),
         description="Primary project configuration file.",
         field_color="blue",
         tools=file_picker,
     )
 
-    form.add_optional_text_input(
+    form.add_text_input(
         key="project_notes",
         label=Text("Project Notes", align="left", color="white"),
         default="Use this workspace for local builds, linting, and release prep.",
+        placeholder=Text("Add project notes here", color="white", wrap_text=True, italicized=True),
         description="Optional notes shown to developers who open this settings profile.",
         field_color="white",
         wrap_text=True,

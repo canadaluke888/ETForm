@@ -13,9 +13,9 @@ plain Python values.
 ## Features
 
 - Native ncurses UI implemented as a CPython extension.
-- Text, optional text, boolean, choice, checkbox, integer, and list inputs.
+- Text, boolean, choice, checkbox, integer, and list inputs.
 - Static sections, text blocks, separators, and tables for grouping larger forms.
-- Styled labels with alignment, color, bold text, and wrapping.
+- Styled text with alignment, color, bold, italicized, and wrapping attributes.
 - Inline text editing with cursor movement and clipboard paste.
 - Scrollable integer fields with optional `min` and `max` bounds.
 - File and directory picker tools for text and list fields.
@@ -145,6 +145,7 @@ Text(
     "Workspace",
     align="center",
     bold=True,
+    italicized=True,
     color="cyan",
     wrap_text=True,
 )
@@ -152,6 +153,8 @@ Text(
 
 Supported alignments are `left`, `center`, and `right`. Supported colors are
 `default`, `white`, `cyan`, `yellow`, `green`, `blue`, `magenta`, and `red`.
+Text styling is used by labels, section text, separator labels, table titles,
+checkbox/list option labels, and text input placeholders.
 
 ### `FilePicker`
 
@@ -197,25 +200,19 @@ form.add_text_input(
     key="project_name",
     label="Project Name",
     default="",
+    placeholder=Text("None", align="right", color="cyan", italicized=True),
     description="Project display name.",
     field_color="cyan",
 )
 ```
 
-Text fields return strings. When `wrap_text=True`, the field can grow over
-multiple display lines and supports vertical cursor movement while editing.
-
-### Optional Text Input
-
-```python
-form.add_optional_text_input(
-    key="notes",
-    label="Notes",
-    wrap_text=True,
-)
-```
-
-Optional text fields also return strings, but allow empty values.
+Text fields return strings. `placeholder` accepts `str` or `Text` and is
+display-only ghost text shown when the field value is empty. `Text`
+placeholders keep their alignment, color, bold, italicized, and wrapping
+attributes within the input box. `default` is not rendered or inserted into the
+field; it is returned only when the user leaves the field empty. When
+`wrap_text=True`, the field can grow over multiple display lines and supports
+vertical cursor movement while editing.
 
 ### Boolean Input
 

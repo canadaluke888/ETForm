@@ -14,7 +14,6 @@ typedef enum {
     TFORM_FIELD_INT,
     TFORM_FIELD_LIST,
     TFORM_FIELD_CHECKBOX,
-    TFORM_FIELD_OPTIONAL_TEXT,
     TFORM_FIELD_TEXT_SECTION,
     TFORM_FIELD_SEPARATOR,
     TFORM_FIELD_SECTION
@@ -47,6 +46,7 @@ typedef struct {
     char *value;
     TFormLabelAlign align;
     int bold;
+    int italicized;
     TFormTextColor color;
     int wrap_text;
 } TFormTextStyle;
@@ -96,6 +96,8 @@ typedef struct {
     int has_max;
     int max_value;
     char *text_value;
+    char *default_value;
+    TFormTextStyle placeholder;
     int bool_value;
     int int_value;
     TFormTextColor field_color;

@@ -389,11 +389,17 @@ static void summarize_checkbox(TFormField *field, char *buffer, size_t size) {
 static void field_value(TFormField *field, char *buffer, size_t size) {
     switch (field->kind) {
         case TFORM_FIELD_TEXT:
+            snprintf(
+                buffer,
+                size,
+                "%s",
+                field->text_value && *field->text_value
+                    ? field->text_value
+                    : field->placeholder.value ? field->placeholder.value : ""
+            );
+            break;
         case TFORM_FIELD_CHOICE:
             snprintf(buffer, size, "%s", field->text_value ? field->text_value : "");
-            break;
-        case TFORM_FIELD_OPTIONAL_TEXT:
-            snprintf(buffer, size, "%s", field->text_value && *field->text_value ? field->text_value : "None");
             break;
         case TFORM_FIELD_BOOL:
             snprintf(buffer, size, "%s", bool_text(field->bool_value));
@@ -653,7 +659,6 @@ static void edit_field(TFormField *field) {
     }
     switch (field->kind) {
         case TFORM_FIELD_TEXT:
-        case TFORM_FIELD_OPTIONAL_TEXT:
             break;
         case TFORM_FIELD_INT:
             if (!field->scrollable) {
@@ -933,7 +938,7 @@ static int field_display_height(TFormField *field, int width) {
         return (field->checkbox_count > 0 ? field->checkbox_count : 1) + 3 + padding * 2;
     }
     if (field &&
-        (field->kind == TFORM_FIELD_TEXT || field->kind == TFORM_FIELD_OPTIONAL_TEXT) &&
+        field->kind == TFORM_FIELD_TEXT &&
         field->wrap_text) {
         return text_field_wrap_line_count(field->text_value, field_inner_width(width)) + 3 + padding * 2;
     }
@@ -1019,8 +1024,25 @@ static int text_attr(const TFormTextStyle *style, int default_attr) {
     if (style && style->bold) {
         attr |= A_BOLD;
     }
+#ifdef A_ITALIC
+    if (style && style->italicized) {
+        attr |= A_ITALIC;
+    }
+#endif
     return attr;
 }
+
+static void draw_text_section(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    int height,
+    const TFormTextStyle *text,
+    int wrap_text,
+    int clip_top,
+    int clip_bottom
+);
 
 static void draw_field(
     WINDOW *win,
@@ -1036,6 +1058,7 @@ static void draw_field(
     const TFormTextStyle *label,
     TFormTextColor field_color,
     const char *value,
+    const TFormTextStyle *value_style,
     int clip_top,
     int clip_bottom
 ) {
@@ -1089,6 +1112,20 @@ static void draw_field(
     int row = 0;
     int col = 0;
     const char *text = value ? value : "";
+    if (value_style && (!text_edit || !*text)) {
+        draw_text_section(
+            win,
+            y + 2,
+            x + 2,
+            inner_width,
+            content_rows,
+            value_style,
+            value_style->wrap_text,
+            clip_top,
+            clip_bottom
+        );
+        return;
+    }
     if (wrap_text) {
         for (size_t i = 0; text[i] && row < content_rows; i++) {
             char ch = text[i];
@@ -1904,6 +1941,19 @@ static void draw_form(
         } else {
             field_value(&form->fields[index], value, sizeof(value));
         }
+        if (form->fields[index].kind == TFORM_FIELD_TEXT &&
+            edit_mode == TFORM_EDIT_TEXT &&
+            index == selected) {
+            snprintf(value, sizeof(value), "%s", form->fields[index].text_value ? form->fields[index].text_value : "");
+        }
+        const TFormTextStyle *value_style = NULL;
+        if (form->fields[index].kind == TFORM_FIELD_TEXT &&
+            !(edit_mode == TFORM_EDIT_TEXT && index == selected) &&
+            (!form->fields[index].text_value || !*form->fields[index].text_value) &&
+            form->fields[index].placeholder.value &&
+            *form->fields[index].placeholder.value) {
+            value_style = &form->fields[index].placeholder;
+        }
         draw_field(
             main_panel->win,
             content_y,
@@ -1918,6 +1968,7 @@ static void draw_form(
             &form->fields[index].label,
             form->fields[index].field_color,
             value,
+            value_style,
             1,
             body_h
         );
@@ -2223,8 +2274,7 @@ int tform_run_form(TFormObject *form) {
             if (field_is_inline_scrollable(&form->fields[selected])) {
                 edit_mode = TFORM_EDIT_SCROLL;
                 reset_numeric_scroll(&numeric_scroll);
-            } else if (form->fields[selected].kind == TFORM_FIELD_TEXT ||
-                       form->fields[selected].kind == TFORM_FIELD_OPTIONAL_TEXT) {
+            } else if (form->fields[selected].kind == TFORM_FIELD_TEXT) {
                 TFormField *field = &form->fields[selected];
                 if (field->has_file_picker) {
                     char *value = ghostcode_file_picker_dialog(
@@ -2233,7 +2283,7 @@ int tform_run_form(TFormObject *form) {
                         field->file_picker_start_dir
                     );
                     if (value) {
-                        replace_string(&field->text_value, value, field->kind == TFORM_FIELD_OPTIONAL_TEXT);
+                        replace_string(&field->text_value, value, 1);
                     }
                 } else {
                     edit_mode = TFORM_EDIT_TEXT;

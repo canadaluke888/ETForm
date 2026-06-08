@@ -16,7 +16,7 @@ sources = [
 
 setup(
     name="tform",
-    version="0.2.0",
+    version="0.4.0",
     description="Native ncurses forms styled after Ghostcode Config Edit",
     packages=["tform"],
     package_data={"tform": ["py.typed", "*.pyi"]},
