@@ -18,6 +18,10 @@ class Text:
         color: TextColor = "default",
         wrap_text: bool = False,
         italicized: bool = False,
+        dim: bool = False,
+        underline: bool = False,
+        blink: bool = False,
+        strikethrough: bool = False,
     ) -> None: ...
 
     @property
@@ -31,6 +35,18 @@ class Text:
 
     @property
     def italicized(self) -> bool: ...
+
+    @property
+    def dim(self) -> bool: ...
+
+    @property
+    def underline(self) -> bool: ...
+
+    @property
+    def blink(self) -> bool: ...
+
+    @property
+    def strikethrough(self) -> bool: ...
 
     @property
     def color(self) -> TextColor: ...

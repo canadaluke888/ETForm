@@ -16,6 +16,7 @@ def build_form() -> Form:
         title=Text("Command Defaults", align="center", bold=True, color="yellow"),
         color="cyan",
         padding=1,
+        show_lines=True
     )
     command_table.add_column("Command")
     command_table.add_column("Default")
@@ -42,7 +43,7 @@ def build_form() -> Form:
         key="project_name",
         label=Text("Project Name", align="center", bold=True, color="cyan"),
         default="TForm",
-        placeholder=Text("TForm", align="center", color="blue", italicized=True),
+        placeholder=Text("TForm", align="center", color="blue", italicized=True, underline=True),
         description="Display name used in local development prompts and generated output.",
         field_color="cyan",
     )
@@ -51,7 +52,7 @@ def build_form() -> Form:
         key="workspace_root",
         label=Text("Workspace Root", align="right", color="green"),
         default=".",
-        placeholder=Text("Select workspace root", align="right", color="green", italicized=True),
+        placeholder=Text("Select workspace root", align="right", color="green", dim=True),
         description="Root directory for source, tests, and generated artifacts.",
         field_color="green",
         tools=directory_picker,
@@ -61,7 +62,7 @@ def build_form() -> Form:
         key="config_file",
         label=Text("Config File", color="cyan"),
         default="pyproject.toml",
-        placeholder=Text("Select config file", color="cyan", italicized=True),
+        placeholder=Text("Select config file", color="cyan", italicized=True, dim=True),
         description="Primary project configuration file.",
         field_color="blue",
         tools=file_picker,
@@ -71,7 +72,7 @@ def build_form() -> Form:
         key="project_notes",
         label=Text("Project Notes", align="left", color="white"),
         default="Use this workspace for local builds, linting, and release prep.",
-        placeholder=Text("Add project notes here", color="white", wrap_text=True, italicized=True),
+        placeholder=Text("Add project notes here", color="white", wrap_text=True, italicized=True, dim=True),
         description="Optional notes shown to developers who open this settings profile.",
         field_color="white",
         wrap_text=True,

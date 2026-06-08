@@ -1029,6 +1029,30 @@ static int text_attr(const TFormTextStyle *style, int default_attr) {
         attr |= A_ITALIC;
     }
 #endif
+#ifdef A_DIM
+    if (style && style->dim) {
+        attr |= A_DIM;
+    }
+#endif
+#ifdef A_UNDERLINE
+    if (style && style->underline) {
+        attr |= A_UNDERLINE;
+    }
+#endif
+#ifdef A_BLINK
+    if (style && style->blink) {
+        attr |= A_BLINK;
+    }
+#endif
+#ifdef A_STRIKE
+    if (style && style->strikethrough) {
+        attr |= A_STRIKE;
+    }
+#elif defined(A_STRIKETHROUGH)
+    if (style && style->strikethrough) {
+        attr |= A_STRIKETHROUGH;
+    }
+#endif
     return attr;
 }
 

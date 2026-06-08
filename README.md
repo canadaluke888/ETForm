@@ -15,7 +15,8 @@ plain Python values.
 - Native ncurses UI implemented as a CPython extension.
 - Text, boolean, choice, checkbox, integer, and list inputs.
 - Static sections, text blocks, separators, and tables for grouping larger forms.
-- Styled text with alignment, color, bold, italicized, and wrapping attributes.
+- Styled text with alignment, color, bold, italicized, dim, underline, blink,
+  strikethrough, and wrapping attributes.
 - Inline text editing with cursor movement and clipboard paste.
 - Scrollable integer fields with optional `min` and `max` bounds.
 - File and directory picker tools for text and list fields.
@@ -146,6 +147,7 @@ Text(
     align="center",
     bold=True,
     italicized=True,
+    underline=True,
     color="cyan",
     wrap_text=True,
 )
@@ -154,7 +156,10 @@ Text(
 Supported alignments are `left`, `center`, and `right`. Supported colors are
 `default`, `white`, `cyan`, `yellow`, `green`, `blue`, `magenta`, and `red`.
 Text styling is used by labels, section text, separator labels, table titles,
-checkbox/list option labels, and text input placeholders.
+checkbox/list option labels, and text input placeholders. `dim`, `underline`,
+and `blink` map to standard curses attributes. `strikethrough` is exposed as a
+style flag and renders when the active curses implementation provides a
+strikeout attribute.
 
 ### `FilePicker`
 
@@ -208,9 +213,10 @@ form.add_text_input(
 
 Text fields return strings. `placeholder` accepts `str` or `Text` and is
 display-only ghost text shown when the field value is empty. `Text`
-placeholders keep their alignment, color, bold, italicized, and wrapping
-attributes within the input box. `default` is not rendered or inserted into the
-field; it is returned only when the user leaves the field empty. When
+placeholders keep their alignment, color, bold, italicized, dim, underline,
+blink, strikethrough, and wrapping attributes within the input box. `default` is
+not rendered or inserted into the field; it is returned only when the user
+leaves the field empty. When
 `wrap_text=True`, the field can grow over multiple display lines and supports
 vertical cursor movement while editing.
 

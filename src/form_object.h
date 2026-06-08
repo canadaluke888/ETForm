@@ -47,6 +47,10 @@ typedef struct {
     TFormLabelAlign align;
     int bold;
     int italicized;
+    int dim;
+    int underline;
+    int blink;
+    int strikethrough;
     TFormTextColor color;
     int wrap_text;
 } TFormTextStyle;

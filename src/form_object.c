@@ -351,6 +351,10 @@ void tform_text_style_init(TFormTextStyle *style) {
     style->align = TFORM_LABEL_ALIGN_LEFT;
     style->bold = 0;
     style->italicized = 0;
+    style->dim = 0;
+    style->underline = 0;
+    style->blink = 0;
+    style->strikethrough = 0;
     style->color = TFORM_TEXT_COLOR_DEFAULT;
     style->wrap_text = 0;
 }
@@ -388,6 +392,10 @@ static int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src
         dest->align = src->align;
         dest->bold = src->bold;
         dest->italicized = src->italicized;
+        dest->dim = src->dim;
+        dest->underline = src->underline;
+        dest->blink = src->blink;
+        dest->strikethrough = src->strikethrough;
         dest->color = src->color;
         dest->wrap_text = src->wrap_text;
     }
@@ -646,16 +654,47 @@ static PyObject *Text_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) 
 }
 
 static int Text_init(TFormTextObject *self, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {"value", "align", "bold", "color", "wrap_text", "italicized", NULL};
+    static char *kwlist[] = {
+        "value",
+        "align",
+        "bold",
+        "color",
+        "wrap_text",
+        "italicized",
+        "dim",
+        "underline",
+        "blink",
+        "strikethrough",
+        NULL
+    };
     const char *value = NULL;
     const char *align_text = "left";
     int bold = 0;
     const char *color_text = "default";
     int wrap_text = 0;
     int italicized = 0;
+    int dim = 0;
+    int underline = 0;
+    int blink = 0;
+    int strikethrough = 0;
     TFormLabelAlign align = TFORM_LABEL_ALIGN_LEFT;
     TFormTextColor color = TFORM_TEXT_COLOR_DEFAULT;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|spspp", kwlist, &value, &align_text, &bold, &color_text, &wrap_text, &italicized)) {
+    if (!PyArg_ParseTupleAndKeywords(
+            args,
+            kwargs,
+            "s|spspppppp",
+            kwlist,
+            &value,
+            &align_text,
+            &bold,
+            &color_text,
+            &wrap_text,
+            &italicized,
+            &dim,
+            &underline,
+            &blink,
+            &strikethrough
+        )) {
         return -1;
     }
     if (parse_label_align(align_text, &align) < 0 || parse_text_color(color_text, &color) < 0) {
@@ -667,6 +706,10 @@ static int Text_init(TFormTextObject *self, PyObject *args, PyObject *kwargs) {
     self->style.align = align;
     self->style.bold = bold ? 1 : 0;
     self->style.italicized = italicized ? 1 : 0;
+    self->style.dim = dim ? 1 : 0;
+    self->style.underline = underline ? 1 : 0;
+    self->style.blink = blink ? 1 : 0;
+    self->style.strikethrough = strikethrough ? 1 : 0;
     self->style.color = color;
     self->style.wrap_text = wrap_text ? 1 : 0;
     return 0;
@@ -693,13 +736,17 @@ static PyObject *Text_repr(TFormTextObject *self) {
         return NULL;
     }
     PyObject *repr = PyUnicode_FromFormat(
-        "Text(%s, align='%s', bold=%s, color='%s', wrap_text=%s, italicized=%s)",
+        "Text(%s, align='%s', bold=%s, color='%s', wrap_text=%s, italicized=%s, dim=%s, underline=%s, blink=%s, strikethrough=%s)",
         repr_text,
         align_name(self->style.align),
         self->style.bold ? "True" : "False",
         color_name(self->style.color),
         self->style.wrap_text ? "True" : "False",
-        self->style.italicized ? "True" : "False"
+        self->style.italicized ? "True" : "False",
+        self->style.dim ? "True" : "False",
+        self->style.underline ? "True" : "False",
+        self->style.blink ? "True" : "False",
+        self->style.strikethrough ? "True" : "False"
     );
     Py_DECREF(value_repr);
     return repr;
@@ -725,6 +772,26 @@ static PyObject *Text_get_italicized(TFormTextObject *self, void *closure) {
     return PyBool_FromLong(self->style.italicized);
 }
 
+static PyObject *Text_get_dim(TFormTextObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->style.dim);
+}
+
+static PyObject *Text_get_underline(TFormTextObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->style.underline);
+}
+
+static PyObject *Text_get_blink(TFormTextObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->style.blink);
+}
+
+static PyObject *Text_get_strikethrough(TFormTextObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->style.strikethrough);
+}
+
 static PyObject *Text_get_color(TFormTextObject *self, void *closure) {
     (void)closure;
     return PyUnicode_FromString(color_name(self->style.color));
@@ -740,6 +807,10 @@ static PyGetSetDef Text_getset[] = {
     {"align", (getter)Text_get_align, NULL, "Text alignment.", NULL},
     {"bold", (getter)Text_get_bold, NULL, "Whether the text is bold.", NULL},
     {"italicized", (getter)Text_get_italicized, NULL, "Whether the text is italicized.", NULL},
+    {"dim", (getter)Text_get_dim, NULL, "Whether the text is dim.", NULL},
+    {"underline", (getter)Text_get_underline, NULL, "Whether the text is underlined.", NULL},
+    {"blink", (getter)Text_get_blink, NULL, "Whether the text blinks.", NULL},
+    {"strikethrough", (getter)Text_get_strikethrough, NULL, "Whether the text has strikethrough.", NULL},
     {"color", (getter)Text_get_color, NULL, "Text color.", NULL},
     {"wrap_text", (getter)Text_get_wrap_text, NULL, "Whether the text wraps.", NULL},
     {NULL, NULL, NULL, NULL, NULL},
@@ -1057,6 +1128,10 @@ static int parse_label_object(
         style->align = text->style.align;
         style->bold = text->style.bold;
         style->italicized = text->style.italicized;
+        style->dim = text->style.dim;
+        style->underline = text->style.underline;
+        style->blink = text->style.blink;
+        style->strikethrough = text->style.strikethrough;
         style->color = text->style.color;
         style->wrap_text = text->style.wrap_text;
         return 0;
@@ -1076,6 +1151,10 @@ static int parse_label_object(
     style->align = TFORM_LABEL_ALIGN_LEFT;
     style->bold = 0;
     style->italicized = 0;
+    style->dim = 0;
+    style->underline = 0;
+    style->blink = 0;
+    style->strikethrough = 0;
     style->color = TFORM_TEXT_COLOR_DEFAULT;
     style->wrap_text = 0;
     return 0;
