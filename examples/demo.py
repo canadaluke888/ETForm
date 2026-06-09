@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import json
 
-from tform import FilePicker, Form, Table, Text
+from tform import Calendar, FilePicker, Form, Table, Text
 
 
 def build_form() -> Form:
     form = Form(title="Developer Settings")
     file_picker = FilePicker(mode="file", start_dir=".")
     directory_picker = FilePicker(mode="directory", start_dir=".")
+    calendar = Calendar()
     command_table = Table(
         title=Text("Command Defaults", align="center", bold=True, color="yellow"),
         color="cyan",
@@ -76,6 +77,16 @@ def build_form() -> Form:
         description="Optional notes shown to developers who open this settings profile.",
         field_color="white",
         wrap_text=True,
+    )
+
+    form.add_text_input(
+        key="release_date",
+        label=Text("Release Date", align="center", color="yellow"),
+        default="2026-06-08",
+        placeholder=Text("YYYY-MM-DD", align="center", color="yellow", dim=True),
+        description="Target date for the next local release checkpoint.",
+        field_color="yellow",
+        tools=calendar,
     )
 
     form.add_separator(Text("Editor", align="center", color="green"), color="yellow")
@@ -169,6 +180,15 @@ def build_form() -> Form:
         description="Environment files loaded before running commands.",
         field_color="cyan",
         tools=file_picker,
+    )
+
+    form.add_list_input(
+        key="milestone_dates",
+        label=Text("Milestone Dates", align="center", color="yellow"),
+        default=["2026-06-08"],
+        description="Important project dates selected with the calendar tool.",
+        field_color="yellow",
+        tools=calendar,
     )
 
     form.add_list_input(

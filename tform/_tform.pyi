@@ -65,6 +65,10 @@ class FilePicker:
     def start_dir(self) -> str: ...
 
 
+class Calendar:
+    def __init__(self) -> None: ...
+
+
 class Table:
     def __init__(
         self,
@@ -105,7 +109,7 @@ class Form:
         description: str = "",
         field_color: TextColor = "default",
         wrap_text: bool = False,
-        tools: FilePicker | Sequence[FilePicker] | None = None,
+        tools: FilePicker | Calendar | Sequence[FilePicker | Calendar] | None = None,
         padding: int = 1,
     ) -> None: ...
 
@@ -182,7 +186,7 @@ class Form:
         default: Sequence[Label] | None = None,
         description: str = "",
         field_color: TextColor = "default",
-        tools: FilePicker | Sequence[FilePicker] | None = None,
+        tools: FilePicker | Calendar | Sequence[FilePicker | Calendar] | None = None,
         padding: int = 1,
     ) -> None: ...
 

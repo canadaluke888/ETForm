@@ -19,6 +19,9 @@ PyMODINIT_FUNC PyInit__tform(void) {
     if (PyType_Ready(&TFormFilePickerType) < 0) {
         return NULL;
     }
+    if (PyType_Ready(&TFormCalendarType) < 0) {
+        return NULL;
+    }
     if (PyType_Ready(&TFormTableType) < 0) {
         return NULL;
     }
@@ -43,6 +46,12 @@ PyMODINIT_FUNC PyInit__tform(void) {
     Py_INCREF(&TFormFilePickerType);
     if (PyModule_AddObject(module, "FilePicker", (PyObject *)&TFormFilePickerType) < 0) {
         Py_DECREF(&TFormFilePickerType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormCalendarType);
+    if (PyModule_AddObject(module, "Calendar", (PyObject *)&TFormCalendarType) < 0) {
+        Py_DECREF(&TFormCalendarType);
         Py_DECREF(module);
         return NULL;
     }

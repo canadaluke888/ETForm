@@ -96,6 +96,7 @@ typedef struct {
     int has_file_picker;
     int file_picker_mode;
     char *file_picker_start_dir;
+    int has_calendar;
     int has_min;
     int min_value;
     int has_max;
@@ -133,6 +134,7 @@ typedef struct {
 extern PyTypeObject TFormType;
 extern PyTypeObject TFormTextType;
 extern PyTypeObject TFormFilePickerType;
+extern PyTypeObject TFormCalendarType;
 extern PyTypeObject TFormTableType;
 
 void tform_text_style_init(TFormTextStyle *style);

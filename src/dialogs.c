@@ -7,9 +7,11 @@
 #include <curses.h>
 #include <dirent.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define CTRL_E 5
@@ -492,6 +494,356 @@ char *ghostcode_file_picker_dialog(const char *title, int mode, const char *star
     ghostcode_pm_remove(shadow);
     ghostcode_pm_update();
     return result;
+}
+
+static int calendar_is_leap_year(int year) {
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+static int calendar_days_in_month(int month, int year) {
+    static const int days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month == 2 && calendar_is_leap_year(year)) {
+        return 29;
+    }
+    if (month < 1 || month > 12) {
+        return 31;
+    }
+    return days[month - 1];
+}
+
+static void calendar_clamp_date(int *month, int *day, int *year) {
+    if (*year < 1) {
+        *year = 1;
+    } else if (*year > 9999) {
+        *year = 9999;
+    }
+    if (*month < 1) {
+        *month = 12;
+    } else if (*month > 12) {
+        *month = 1;
+    }
+    int max_day = calendar_days_in_month(*month, *year);
+    if (*day < 1) {
+        *day = 1;
+    } else if (*day > max_day) {
+        *day = max_day;
+    }
+}
+
+static int calendar_first_weekday(int month, int year) {
+    struct tm date;
+    memset(&date, 0, sizeof(date));
+    date.tm_year = year - 1900;
+    date.tm_mon = month - 1;
+    date.tm_mday = 1;
+    date.tm_isdst = -1;
+    if (mktime(&date) == (time_t)-1) {
+        return 0;
+    }
+    return date.tm_wday;
+}
+
+static void calendar_parse_initial(const char *initial_date, int *month, int *day, int *year) {
+    int parsed_year = 0;
+    int parsed_month = 0;
+    int parsed_day = 0;
+    if (initial_date && sscanf(initial_date, "%d-%d-%d", &parsed_year, &parsed_month, &parsed_day) == 3) {
+        *year = parsed_year;
+        *month = parsed_month;
+        *day = parsed_day;
+        calendar_clamp_date(month, day, year);
+        return;
+    }
+    time_t now = time(NULL);
+    struct tm *local = localtime(&now);
+    if (local) {
+        *year = local->tm_year + 1900;
+        *month = local->tm_mon + 1;
+        *day = local->tm_mday;
+    } else {
+        *year = 1970;
+        *month = 1;
+        *day = 1;
+    }
+    calendar_clamp_date(month, day, year);
+}
+
+static char *calendar_format_date(int month, int day, int year) {
+    char *result = calloc(11, 1);
+    if (!result) {
+        return NULL;
+    }
+    snprintf(result, 11, "%04d-%02d-%02d", year, month, day);
+    return result;
+}
+
+static void calendar_adjust_numeric(int *month, int *day, int *year, int part, int delta) {
+    if (part == 0) {
+        *month += delta;
+        if (*month < 1) {
+            *month = 12;
+        } else if (*month > 12) {
+            *month = 1;
+        }
+    } else if (part == 1) {
+        *day += delta;
+    } else {
+        *year += delta;
+    }
+    calendar_clamp_date(month, day, year);
+}
+
+static void calendar_move_day(int *day, int month, int year, int delta) {
+    int max_day = calendar_days_in_month(month, year);
+    *day += delta;
+    if (*day < 1) {
+        *day = 1;
+    } else if (*day > max_day) {
+        *day = max_day;
+    }
+}
+
+static void calendar_draw_repeat(WINDOW *win, const char *text, int count) {
+    if (!win || !text || count <= 0) {
+        return;
+    }
+    for (int i = 0; i < count; i++) {
+        waddstr(win, text);
+    }
+}
+
+static void calendar_draw_rule(
+    WINDOW *win,
+    int y,
+    int x,
+    int cell_w,
+    const char *left,
+    const char *mid,
+    const char *right,
+    const char *fill
+) {
+    if (!win || cell_w < 2) {
+        return;
+    }
+    wmove(win, y, x);
+    waddstr(win, left);
+    for (int col = 0; col < 7; col++) {
+        calendar_draw_repeat(win, fill, cell_w - 1);
+        waddstr(win, col == 6 ? right : mid);
+    }
+}
+
+char *ghostcode_calendar_dialog(const char *title, const char *initial_date) {
+    int month = 1;
+    int day = 1;
+    int year = 1970;
+    calendar_parse_initial(initial_date, &month, &day, &year);
+    int selected_day = day;
+    int focus_top = 1;
+    int numeric_part = 0;
+
+    int height = LINES > 23 ? 23 : LINES - 1;
+    int width = COLS > 78 ? 78 : COLS - 2;
+    if (height < 21) {
+        height = 21;
+    }
+    if (width < 56) {
+        width = 56;
+    }
+    if (height > LINES) {
+        height = LINES;
+    }
+    if (width > COLS) {
+        width = COLS;
+    }
+    int y = (LINES - height) / 2;
+    int x = (COLS - width) / 2;
+    if (y < 0) {
+        y = 0;
+    }
+    if (x < 0) {
+        x = 0;
+    }
+
+    GhostcodePmNode *shadow = ghostcode_pm_add(
+        y + 1, x + 2, height, width, GHOSTCODE_PM_LAYER_MODAL_SHADOW, GHOSTCODE_PM_LAYER_MODAL_SHADOW
+    );
+    GhostcodePmNode *modal = ghostcode_pm_add(y, x, height, width, GHOSTCODE_PM_LAYER_MODAL, GHOSTCODE_PM_LAYER_MODAL);
+    if (!modal) {
+        ghostcode_pm_remove(shadow);
+        return NULL;
+    }
+    keypad(modal->win, TRUE);
+
+    for (;;) {
+        selected_day = day;
+        int max_day = calendar_days_in_month(month, year);
+        if (selected_day > max_day) {
+            selected_day = max_day;
+            day = selected_day;
+        }
+
+        if (shadow) {
+            wbkgd(shadow->win, ghostcode_color_pair(GHOSTCODE_PAIR_SHADOW));
+            werase(shadow->win);
+        }
+        wbkgd(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+        werase(modal->win);
+        wattron(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+        box(modal->win, 0, 0);
+        mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "Calendar");
+        mvwprintw(modal->win, height - 2, 2, "[Tab] Section  [Arrows] Change  [Enter] Select  [Esc] Done");
+        wattroff(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+
+        int top_y = 2;
+        int top_x = 4;
+        int top_w = width - 8;
+        mvwaddch(modal->win, top_y, top_x, ACS_ULCORNER);
+        mvwhline(modal->win, top_y, top_x + 1, ACS_HLINE, top_w - 2);
+        mvwaddch(modal->win, top_y, top_x + top_w - 1, ACS_URCORNER);
+        mvwaddch(modal->win, top_y + 2, top_x, ACS_LLCORNER);
+        mvwhline(modal->win, top_y + 2, top_x + 1, ACS_HLINE, top_w - 2);
+        mvwaddch(modal->win, top_y + 2, top_x + top_w - 1, ACS_LRCORNER);
+        mvwaddch(modal->win, top_y + 1, top_x, ACS_VLINE);
+        mvwaddch(modal->win, top_y + 1, top_x + top_w - 1, ACS_VLINE);
+        int month_x = top_x + 3;
+        int day_x = top_x + top_w / 3 + 3;
+        int year_x = top_x + (top_w * 2) / 3 + 3;
+        mvwprintw(modal->win, top_y + 1, month_x, "Month:");
+        mvwprintw(modal->win, top_y + 1, day_x, "Day:");
+        mvwprintw(modal->win, top_y + 1, year_x, "Year:");
+        int active_attr = ghostcode_color_pair(GHOSTCODE_PAIR_SYNTAX_KEYWORD) | A_BOLD;
+        if (focus_top && numeric_part == 0) {
+            wattron(modal->win, active_attr);
+        }
+        mvwprintw(modal->win, top_y + 1, month_x + 7, "%02d", month);
+        if (focus_top && numeric_part == 0) {
+            wattroff(modal->win, active_attr);
+        }
+        if (focus_top && numeric_part == 1) {
+            wattron(modal->win, active_attr);
+        }
+        mvwprintw(modal->win, top_y + 1, day_x + 5, "%02d", day);
+        if (focus_top && numeric_part == 1) {
+            wattroff(modal->win, active_attr);
+        }
+        if (focus_top && numeric_part == 2) {
+            wattron(modal->win, active_attr);
+        }
+        mvwprintw(modal->win, top_y + 1, year_x + 6, "%04d", year);
+        if (focus_top && numeric_part == 2) {
+            wattroff(modal->win, active_attr);
+        }
+
+        int grid_y = 6;
+        int cell_w = (width - 8) / 7;
+        if (cell_w < 6) {
+            cell_w = 6;
+        }
+        int grid_w = cell_w * 7 + 1;
+        int grid_x = (width - grid_w) / 2;
+        if (grid_x < 2) {
+            grid_x = 2;
+        }
+        const char *headers[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+        int grid_attr = ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG);
+        wattron(modal->win, grid_attr);
+        calendar_draw_rule(modal->win, grid_y, grid_x, cell_w, "┏", "┳", "┓", "━");
+        for (int col = 0; col < 7; col++) {
+            int cell_x = grid_x + col * cell_w;
+            mvwaddstr(modal->win, grid_y + 1, cell_x, col == 0 ? "┃" : "┃");
+            int label_x = cell_x + 1 + ((cell_w - 1) - 3) / 2;
+            mvwprintw(modal->win, grid_y + 1, label_x, "%s", headers[col]);
+        }
+        mvwaddstr(modal->win, grid_y + 1, grid_x + grid_w - 1, "┃");
+        calendar_draw_rule(modal->win, grid_y + 2, grid_x, cell_w, "┣", "╇", "┫", "━");
+        wattroff(modal->win, grid_attr);
+
+        int first = calendar_first_weekday(month, year);
+        for (int row = 0; row < 6; row++) {
+            int draw_y = grid_y + 3 + row * 2;
+            for (int col = 0; col < 7; col++) {
+                int index = row * 7 + col;
+                int cell_day = index - first + 1;
+                int draw_x = grid_x + col * cell_w;
+                wattron(modal->win, grid_attr);
+                mvwaddstr(modal->win, draw_y, draw_x, col == 0 ? "┃" : "│");
+                if (col == 6) {
+                    mvwaddstr(modal->win, draw_y, draw_x + cell_w, "┃");
+                }
+                wattroff(modal->win, grid_attr);
+                if (cell_day < 1 || cell_day > max_day) {
+                    continue;
+                }
+                int day_attr = 0;
+                if (!focus_top && cell_day == selected_day) {
+                    day_attr = A_REVERSE | A_BOLD;
+                } else if (cell_day == day) {
+                    day_attr = A_BOLD;
+                }
+                if (day_attr) {
+                    wattron(modal->win, day_attr);
+                }
+                if (!focus_top && cell_day == selected_day) {
+                    mvwhline(modal->win, draw_y, draw_x + 1, ' ', cell_w - 1);
+                }
+                mvwprintw(modal->win, draw_y, draw_x + 2, "%2d", cell_day);
+                if (day_attr) {
+                    wattroff(modal->win, day_attr);
+                }
+            }
+            wattron(modal->win, grid_attr);
+            if (row < 5) {
+                calendar_draw_rule(modal->win, draw_y + 1, grid_x, cell_w, "┠", "┼", "┨", "─");
+            }
+            wattroff(modal->win, grid_attr);
+        }
+        wattron(modal->win, grid_attr);
+        calendar_draw_rule(modal->win, grid_y + 14, grid_x, cell_w, "┗", "┷", "┛", "━");
+        wattroff(modal->win, grid_attr);
+
+        ghostcode_pm_wnoutrefresh(shadow);
+        ghostcode_pm_wnoutrefresh(modal);
+        ghostcode_pm_update();
+
+        int ch = wgetch(modal->win);
+        if (focus_top) {
+            if (ch == 27 || ch == '\n' || ch == KEY_ENTER) {
+                char *result = calendar_format_date(month, day, year);
+                ghostcode_pm_remove(modal);
+                ghostcode_pm_remove(shadow);
+                ghostcode_pm_update();
+                return result;
+            }
+            if (ch == '\t') {
+                focus_top = 0;
+            } else if (ch == KEY_LEFT) {
+                numeric_part = numeric_part > 0 ? numeric_part - 1 : 2;
+            } else if (ch == KEY_RIGHT) {
+                numeric_part = numeric_part < 2 ? numeric_part + 1 : 0;
+            } else if (ch == KEY_UP) {
+                calendar_adjust_numeric(&month, &day, &year, numeric_part, 1);
+            } else if (ch == KEY_DOWN) {
+                calendar_adjust_numeric(&month, &day, &year, numeric_part, -1);
+            }
+        } else {
+            if (ch == 27) {
+                focus_top = 1;
+            } else if (ch == '\t') {
+                focus_top = 1;
+            } else if (ch == KEY_LEFT) {
+                calendar_move_day(&day, month, year, -1);
+            } else if (ch == KEY_RIGHT) {
+                calendar_move_day(&day, month, year, 1);
+            } else if (ch == KEY_UP) {
+                calendar_move_day(&day, month, year, -7);
+            } else if (ch == KEY_DOWN) {
+                calendar_move_day(&day, month, year, 7);
+            } else if (ch == '\n' || ch == KEY_ENTER) {
+                focus_top = 1;
+            }
+        }
+    }
 }
 
 void ghostcode_message_dialog(const char *message) {

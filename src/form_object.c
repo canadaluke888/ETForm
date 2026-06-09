@@ -646,6 +646,10 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
+} TFormCalendarObject;
+
+typedef struct {
+    PyObject_HEAD
     TFormTable table;
 } TFormTableObject;
 
@@ -936,6 +940,22 @@ PyTypeObject TFormFilePickerType = {
     .tp_new = PyType_GenericNew,
 };
 
+static PyObject *Calendar_repr(TFormCalendarObject *self) {
+    (void)self;
+    return PyUnicode_FromString("Calendar()");
+}
+
+PyTypeObject TFormCalendarType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.Calendar",
+    .tp_basicsize = sizeof(TFormCalendarObject),
+    .tp_itemsize = 0,
+    .tp_repr = (reprfunc)Calendar_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Tool that opens an interactive calendar for compatible fields.",
+    .tp_new = PyType_GenericNew,
+};
+
 static PyObject *Table_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
@@ -1104,7 +1124,11 @@ static int apply_tool(TFormField *field, PyObject *tool) {
         field->file_picker_start_dir = start_dir;
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "tools must contain FilePicker instances");
+    if (PyObject_TypeCheck(tool, &TFormCalendarType)) {
+        field->has_calendar = 1;
+        return 0;
+    }
+    PyErr_SetString(PyExc_TypeError, "tools must contain FilePicker or Calendar instances");
     return -1;
 }
 
@@ -1112,10 +1136,10 @@ static int apply_tools(TFormField *field, PyObject *tools) {
     if (!tools || tools == Py_None) {
         return 0;
     }
-    if (PyObject_TypeCheck(tools, &TFormFilePickerType)) {
+    if (PyObject_TypeCheck(tools, &TFormFilePickerType) || PyObject_TypeCheck(tools, &TFormCalendarType)) {
         return apply_tool(field, tools);
     }
-    PyObject *seq = PySequence_Fast(tools, "tools must be a FilePicker or a sequence of tools");
+    PyObject *seq = PySequence_Fast(tools, "tools must be a FilePicker, Calendar, or a sequence of tools");
     if (!seq) {
         return -1;
     }

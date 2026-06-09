@@ -51,7 +51,7 @@ python3 -m pip install -e .
 ## Quick Start
 
 ```python
-from tform import FilePicker, Form, Table, Text
+from tform import Calendar, FilePicker, Form, Table, Text
 
 
 form = Form(title="Project Setup")
@@ -106,6 +106,12 @@ form.add_text_input(
     tools=FilePicker(mode="file", start_dir="."),
 )
 
+form.add_text_input(
+    key="release_date",
+    label="Release Date",
+    tools=Calendar(),
+)
+
 values = form.run()
 if values is None:
     print("Canceled")
@@ -124,7 +130,7 @@ python3 examples/demo.py
 Import the framework objects from `tform`:
 
 ```python
-from tform import FilePicker, Form, Table, Text
+from tform import Calendar, FilePicker, Form, Table, Text
 ```
 
 ### `Form`
@@ -171,6 +177,20 @@ FilePicker(mode="directory", start_dir=".")
 ```
 
 Supported modes are `file` and `directory`.
+
+### `Calendar`
+
+`Calendar()` attaches an interactive date picker to text and list fields. It
+opens anywhere text input is needed, uses the current `YYYY-MM-DD` value when
+available, and returns a valid `YYYY-MM-DD` date string.
+
+```python
+form.add_text_input(
+    key="release_date",
+    label="Release Date",
+    tools=Calendar(),
+)
+```
 
 ### `Table`
 
@@ -289,7 +309,8 @@ form.add_list_input(
 ```
 
 List fields return `list[str]`. Without tools, users can add, edit, and delete
-plain text entries. With a `FilePicker`, add and edit actions open the picker.
+plain text entries. With a `FilePicker` or `Calendar`, add and edit actions open
+the attached tool.
 
 ### Static Sections and Separators
 

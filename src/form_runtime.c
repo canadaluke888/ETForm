@@ -560,6 +560,23 @@ static void show_int_bounds_error(TFormField *field, long attempted) {
     ghostcode_message_dialog(message);
 }
 
+static char *open_field_tool(TFormField *field, const char *initial_value) {
+    if (!field) {
+        return NULL;
+    }
+    if (field->has_calendar) {
+        return ghostcode_calendar_dialog(field->label.value, initial_value);
+    }
+    if (field->has_file_picker) {
+        return ghostcode_file_picker_dialog(
+            field->label.value,
+            field->file_picker_mode,
+            field->file_picker_start_dir
+        );
+    }
+    return NULL;
+}
+
 static int int_value_in_bounds(TFormField *field, long value) {
     return value >= field_minimum(field) && value <= field_maximum(field);
 }
@@ -2206,6 +2223,8 @@ static void draw_form(
         TFormField *field = &form->fields[selected];
         if (list_inputting) {
             ghostcode_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
+        } else if (field->has_calendar) {
+            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_file_picker) {
             ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
         } else {
@@ -2369,12 +2388,8 @@ int tform_run_form(TFormObject *form) {
             } else if (ch == KEY_DOWN && field->list_value.count > 0) {
                 list_selected = tform_next_form_index(list_selected, field->list_value.count, 1);
             } else if (ch == 'a' || ch == 'A') {
-                if (field->has_file_picker) {
-                    char *value = ghostcode_file_picker_dialog(
-                        field->label.value,
-                        field->file_picker_mode,
-                        field->file_picker_start_dir
-                    );
+                if (field->has_calendar || field->has_file_picker) {
+                    char *value = open_field_tool(field, NULL);
                     if (value) {
                         trim_in_place(value);
                         if (*value && tform_list_append_value(field, value, NULL) == 0) {
@@ -2391,11 +2406,10 @@ int tform_run_form(TFormObject *form) {
                     list_inputting = 1;
                 }
             } else if ((ch == 'e' || ch == 'E') && field->list_value.count > 0) {
-                if (field->has_file_picker) {
-                    char *value = ghostcode_file_picker_dialog(
-                        field->label.value,
-                        field->file_picker_mode,
-                        field->file_picker_start_dir
+                if (field->has_calendar || field->has_file_picker) {
+                    char *value = open_field_tool(
+                        field,
+                        field->list_value.items ? field->list_value.items[list_selected] : NULL
                     );
                     if (value) {
                         trim_in_place(value);
@@ -2464,12 +2478,8 @@ int tform_run_form(TFormObject *form) {
                 reset_numeric_scroll(&numeric_scroll);
             } else if (form->fields[selected].kind == TFORM_FIELD_TEXT) {
                 TFormField *field = &form->fields[selected];
-                if (field->has_file_picker) {
-                    char *value = ghostcode_file_picker_dialog(
-                        field->label.value,
-                        field->file_picker_mode,
-                        field->file_picker_start_dir
-                    );
+                if (field->has_calendar || field->has_file_picker) {
+                    char *value = open_field_tool(field, field->text_value);
                     if (value) {
                         replace_string(&field->text_value, value, 1);
                     }
