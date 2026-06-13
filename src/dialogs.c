@@ -1,5 +1,6 @@
 #include "dialogs.h"
 
+#include "braille_canvas.h"
 #include "editor_theme.h"
 #include "panel_manager.h"
 #include "ui_text.h"
@@ -7,6 +8,7 @@
 #include <curses.h>
 #include <dirent.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -842,6 +844,314 @@ char *ghostcode_calendar_dialog(const char *title, const char *initial_date) {
             } else if (ch == '\n' || ch == KEY_ENTER) {
                 focus_top = 1;
             }
+        }
+    }
+}
+
+static int clock_wrap(int value, int minimum, int maximum) {
+    int range = maximum - minimum + 1;
+    while (value < minimum) value += range;
+    while (value > maximum) value -= range;
+    return value;
+}
+
+static int clock_parse_initial(const char *value, int *hour, int *minute, int *second) {
+    int parsed_hour = 0;
+    int parsed_minute = 0;
+    int parsed_second = 0;
+    char suffix[3] = "";
+    int fields;
+
+    if (!value) return 0;
+    fields = sscanf(value, " %d:%d:%d %2s", &parsed_hour, &parsed_minute, &parsed_second, suffix);
+    if (fields < 3) {
+        parsed_second = 0;
+        suffix[0] = '\0';
+        fields = sscanf(value, " %d:%d %2s", &parsed_hour, &parsed_minute, suffix);
+    }
+    if (fields < 2 || parsed_minute < 0 || parsed_minute > 59 ||
+        parsed_second < 0 || parsed_second > 59) {
+        return 0;
+    }
+    if (suffix[0]) {
+        if (parsed_hour < 1 || parsed_hour > 12) return 0;
+        if ((suffix[0] == 'P' || suffix[0] == 'p') &&
+            (suffix[1] == 'M' || suffix[1] == 'm')) {
+            if (parsed_hour != 12) parsed_hour += 12;
+        } else if ((suffix[0] == 'A' || suffix[0] == 'a') &&
+                   (suffix[1] == 'M' || suffix[1] == 'm')) {
+            if (parsed_hour == 12) parsed_hour = 0;
+        } else {
+            return 0;
+        }
+    } else if (parsed_hour < 0 || parsed_hour > 23) {
+        return 0;
+    }
+    *hour = parsed_hour;
+    *minute = parsed_minute;
+    *second = parsed_second;
+    return 1;
+}
+
+static void clock_local_time(int *hour, int *minute, int *second) {
+    time_t now = time(NULL);
+    struct tm local_value;
+    if (localtime_r(&now, &local_value)) {
+        *hour = local_value.tm_hour;
+        *minute = local_value.tm_min;
+        *second = local_value.tm_sec;
+    } else {
+        *hour = 0;
+        *minute = 0;
+        *second = 0;
+    }
+}
+
+static long long clock_monotonic_seconds(void) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return 0;
+    return (long long)now.tv_sec;
+}
+
+static int clock_seconds_of_day(int hour, int minute, int second) {
+    return hour * 3600 + minute * 60 + second;
+}
+
+static void clock_split_seconds(int total, int *hour, int *minute, int *second) {
+    total %= 24 * 60 * 60;
+    if (total < 0) total += 24 * 60 * 60;
+    *hour = total / 3600;
+    *minute = (total / 60) % 60;
+    *second = total % 60;
+}
+
+static char *clock_format_value(int hour, int minute, int second, int format_12h, int include_seconds) {
+    char *result = calloc(16, 1);
+    if (!result) return NULL;
+    if (format_12h) {
+        const char *suffix = hour >= 12 ? "PM" : "AM";
+        int display_hour = hour % 12;
+        if (display_hour == 0) display_hour = 12;
+        if (include_seconds) {
+            snprintf(result, 16, "%02d:%02d:%02d %s", display_hour, minute, second, suffix);
+        } else {
+            snprintf(result, 16, "%02d:%02d %s", display_hour, minute, suffix);
+        }
+    } else if (include_seconds) {
+        snprintf(result, 16, "%02d:%02d:%02d", hour, minute, second);
+    } else {
+        snprintf(result, 16, "%02d:%02d", hour, minute);
+    }
+    return result;
+}
+
+static void clock_draw_hand(
+    BrailleCanvas *canvas,
+    int center_x,
+    int center_y,
+    double angle,
+    double length
+) {
+    int end_x = center_x + (int)lround(sin(angle) * length);
+    int end_y = center_y - (int)lround(cos(angle) * length);
+    braille_canvas_draw_line(canvas, center_x, center_y, end_x, end_y);
+}
+
+static void clock_draw_face(
+    WINDOW *win,
+    int origin_y,
+    int origin_x,
+    int char_width,
+    int char_height,
+    int hour,
+    int minute,
+    int second
+) {
+    BrailleCanvas canvas;
+    memset(&canvas, 0, sizeof(canvas));
+    if (char_width < 4 || char_height < 3 ||
+        braille_canvas_init(&canvas, char_width, char_height) < 0) {
+        return;
+    }
+    int dot_width = braille_canvas_dot_width(&canvas);
+    int dot_height = braille_canvas_dot_height(&canvas);
+    int center_x = dot_width / 2;
+    int center_y = dot_height / 2;
+    int radius = center_x < center_y ? center_x : center_y;
+    radius -= 2;
+    if (radius < 2) radius = 2;
+    const double pi = 3.14159265358979323846;
+    braille_canvas_draw_circle(&canvas, center_x, center_y, radius);
+    for (int marker = 0; marker < 12; marker++) {
+        double angle = (double)marker * pi / 6.0;
+        int marker_x = center_x + (int)lround(sin(angle) * (radius - 1));
+        int marker_y = center_y - (int)lround(cos(angle) * (radius - 1));
+        braille_canvas_set_dot(&canvas, marker_x, marker_y);
+    }
+    clock_draw_hand(
+        &canvas, center_x, center_y,
+        ((double)(hour % 12) + (double)minute / 60.0) * pi / 6.0,
+        radius * 0.50
+    );
+    clock_draw_hand(
+        &canvas, center_x, center_y,
+        ((double)minute + (double)second / 60.0) * pi / 30.0,
+        radius * 0.72
+    );
+    clock_draw_hand(
+        &canvas, center_x, center_y,
+        (double)second * pi / 30.0,
+        radius * 0.88
+    );
+    wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_SYNTAX_KEYWORD) | A_BOLD);
+    braille_canvas_render(&canvas, win, origin_y, origin_x, char_height, char_width);
+    wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_SYNTAX_KEYWORD) | A_BOLD);
+    braille_canvas_free(&canvas);
+}
+
+char *ghostcode_clock_dialog(
+    const char *title,
+    const char *initial_time,
+    int format_12h,
+    int include_seconds
+) {
+    int initial_hour;
+    int initial_minute;
+    int initial_second;
+    if (!clock_parse_initial(initial_time, &initial_hour, &initial_minute, &initial_second)) {
+        clock_local_time(&initial_hour, &initial_minute, &initial_second);
+    }
+    int base_seconds = clock_seconds_of_day(initial_hour, initial_minute, initial_second);
+    long long base_tick = clock_monotonic_seconds();
+    int selected = 0;
+    int control_count = include_seconds ? 3 : 2;
+    if (format_12h) control_count++;
+
+    int height = LINES > 20 ? 20 : LINES;
+    int width = COLS > 72 ? 72 : COLS;
+    if (height < 10 || width < 30) return NULL;
+    int y = (LINES - height) / 2;
+    int x = (COLS - width) / 2;
+    GhostcodePmNode *shadow = ghostcode_pm_add(
+        y + 1, x + 2, height, width,
+        GHOSTCODE_PM_LAYER_MODAL_SHADOW, GHOSTCODE_PM_LAYER_MODAL_SHADOW
+    );
+    GhostcodePmNode *modal = ghostcode_pm_add(
+        y, x, height, width, GHOSTCODE_PM_LAYER_MODAL, GHOSTCODE_PM_LAYER_MODAL
+    );
+    if (!modal) {
+        ghostcode_pm_remove(shadow);
+        return NULL;
+    }
+    keypad(modal->win, TRUE);
+    wtimeout(modal->win, 200);
+
+    for (;;) {
+        long long elapsed = clock_monotonic_seconds() - base_tick;
+        int hour;
+        int minute;
+        int second;
+        clock_split_seconds(base_seconds + (int)elapsed, &hour, &minute, &second);
+
+        if (shadow) {
+            wbkgd(shadow->win, ghostcode_color_pair(GHOSTCODE_PAIR_SHADOW));
+            werase(shadow->win);
+        }
+        wbkgd(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+        werase(modal->win);
+        wattron(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+        box(modal->win, 0, 0);
+        mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "Clock");
+        mvwprintw(modal->win, height - 2, 2, "[Left/Right] Field  [Up/Down] Change  [Enter] Select  [Esc] Cancel");
+        wattroff(modal->win, ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG));
+
+        int digital_width = width >= 58 ? 24 : width - 4;
+        int digital_x = 3;
+        int digital_y = 3;
+        int display_hour = format_12h ? hour % 12 : hour;
+        if (format_12h && display_hour == 0) display_hour = 12;
+        const char *labels[4] = {"Hour", "Minute", "Second", "Period"};
+        int values[4] = {display_hour, minute, second, hour >= 12};
+        int logical_to_display[4] = {0, 1, 2, 3};
+        if (!include_seconds && format_12h) logical_to_display[2] = 3;
+        for (int control = 0; control < control_count; control++) {
+            int display_index = logical_to_display[control];
+            int attr = ghostcode_color_pair(GHOSTCODE_PAIR_DIALOG);
+            if (control == selected) {
+                attr = (int)(ghostcode_color_pair(GHOSTCODE_PAIR_CURSOR) | A_BOLD);
+            }
+            wattron(modal->win, attr);
+            if (display_index == 3) {
+                mvwprintw(modal->win, digital_y + control * 2, digital_x,
+                          "%-8s  %s", labels[display_index], values[display_index] ? "PM" : "AM");
+            } else {
+                mvwprintw(modal->win, digital_y + control * 2, digital_x,
+                          "%-8s  %02d", labels[display_index], values[display_index]);
+            }
+            wattroff(modal->win, attr);
+        }
+        char *formatted = clock_format_value(hour, minute, second, format_12h, include_seconds);
+        if (formatted) {
+            wattron(modal->win, A_BOLD);
+            mvwprintw(modal->win, height - 4, digital_x, "%.*s", digital_width - 1, formatted);
+            wattroff(modal->win, A_BOLD);
+            free(formatted);
+        }
+
+        if (width >= 58) {
+            int canvas_x = digital_x + digital_width;
+            int canvas_width = width - canvas_x - 2;
+            int canvas_height = height - 5;
+            clock_draw_face(modal->win, 2, canvas_x, canvas_width, canvas_height, hour, minute, second);
+        } else {
+            int canvas_height = height - (digital_y + control_count * 2) - 3;
+            if (canvas_height >= 3) {
+                clock_draw_face(modal->win, digital_y + control_count * 2, 3,
+                                width - 6, canvas_height, hour, minute, second);
+            }
+        }
+
+        ghostcode_pm_wnoutrefresh(shadow);
+        ghostcode_pm_wnoutrefresh(modal);
+        ghostcode_pm_update();
+
+        int ch = wgetch(modal->win);
+        if (ch == ERR) continue;
+        if (ch == 27) {
+            ghostcode_pm_remove(modal);
+            ghostcode_pm_remove(shadow);
+            ghostcode_pm_update();
+            return NULL;
+        }
+        if (ch == '\n' || ch == KEY_ENTER) {
+            char *result = clock_format_value(hour, minute, second, format_12h, include_seconds);
+            ghostcode_pm_remove(modal);
+            ghostcode_pm_remove(shadow);
+            ghostcode_pm_update();
+            return result;
+        }
+        if (ch == KEY_LEFT) {
+            selected = clock_wrap(selected - 1, 0, control_count - 1);
+            continue;
+        }
+        if (ch == KEY_RIGHT || ch == '\t') {
+            selected = clock_wrap(selected + 1, 0, control_count - 1);
+            continue;
+        }
+        if (ch == KEY_UP || ch == KEY_DOWN) {
+            int delta = ch == KEY_UP ? 1 : -1;
+            int display_index = logical_to_display[selected];
+            if (display_index == 0) {
+                hour = clock_wrap(hour + delta, 0, 23);
+            } else if (display_index == 1) {
+                minute = clock_wrap(minute + delta, 0, 59);
+            } else if (display_index == 2) {
+                second = clock_wrap(second + delta, 0, 59);
+            } else {
+                hour = (hour + 12) % 24;
+            }
+            base_seconds = clock_seconds_of_day(hour, minute, second);
+            base_tick = clock_monotonic_seconds();
         }
     }
 }

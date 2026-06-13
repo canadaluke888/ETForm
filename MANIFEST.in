@@ -1,0 +1,6 @@
+include VERSION
+include README.md
+include examples/demo.py
+include assets/logo.png
+include src/braille_canvas.h
+include src/third_party/stb_image.h

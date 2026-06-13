@@ -19,7 +19,8 @@ plain Python values.
   strikethrough, and wrapping attributes.
 - Inline text editing with cursor movement and clipboard paste.
 - Scrollable integer fields with optional `min` and `max` bounds.
-- File and directory picker tools for text and list fields.
+- File, calendar, and clock picker tools for text and list fields.
+- Static Unicode Braille canvases for compact terminal graphics.
 - Typed package metadata through `py.typed` and `.pyi` stubs.
 
 ## Requirements
@@ -51,7 +52,7 @@ python3 -m pip install -e .
 ## Quick Start
 
 ```python
-from tform import Calendar, FilePicker, Form, Table, Text
+from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 
 
 form = Form(title="Project Setup")
@@ -112,6 +113,12 @@ form.add_text_input(
     tools=Calendar(),
 )
 
+form.add_text_input(
+    key="release_time",
+    label="Release Time",
+    tools=Clock(format="12h", include_seconds=True),
+)
+
 values = form.run()
 if values is None:
     print("Canceled")
@@ -130,7 +137,7 @@ python3 examples/demo.py
 Import the framework objects from `tform`:
 
 ```python
-from tform import Calendar, FilePicker, Form, Table, Text
+from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 ```
 
 ### `Form`
@@ -191,6 +198,67 @@ form.add_text_input(
     tools=Calendar(),
 )
 ```
+
+### `Clock`
+
+`Clock(format="24h", include_seconds=False)` attaches a live digital and Braille
+analog time picker to text and list fields. It returns `HH:MM[:SS]` in 24-hour
+mode or `hh:MM[:SS] AM/PM` in 12-hour mode.
+
+```python
+form.add_text_input(
+    key="release_time",
+    label="Release Time",
+    tools=Clock(format="12h", include_seconds=True),
+)
+```
+
+### `BrailleCanvas`
+
+`BrailleCanvas(width, height, color="default", padding=1)` stores a 2x4-dot
+Unicode Braille raster per terminal cell. Draw with dot coordinates, then pass
+the canvas to `add_section()`; the form stores a static copy.
+
+```python
+canvas = BrailleCanvas(24, 8, color="cyan")
+canvas.draw_circle(canvas.dot_width // 2, canvas.dot_height // 2, 12)
+canvas.draw_line(0, 0, canvas.dot_width - 1, canvas.dot_height - 1)
+canvas.draw_image("logo.png")
+form.add_section(canvas, boxed=True)
+```
+
+`draw_image(path)` accepts image formats supported by `stb_image`, including
+PNG, JPEG, BMP, GIF, TGA, PSD, HDR, PIC, and PNM. The image is aspect-fitted
+and centered in the Braille dot grid. Transparent pixels are composited over
+white. Luminance dithering varies Braille dot density to preserve shading,
+highlights, and reflections instead of applying a single hard threshold. On
+256-color terminals each Braille cell uses the nearest xterm color from the
+source image; 8-color and monochrome terminals use the canvas's configured
+fallback color. Since one Braille character has one foreground color, all
+raised dots within the same 2x4 cell share that color. Drawing overlays existing
+canvas content; call `clear()` first when replacement is desired.
+
+### `Image`
+
+`Image` is the portable, image-focused section API. It decodes once when the
+object is created and renders through Unicode Braille, so it works without
+Kitty, Sixel, or other terminal-specific graphics protocols.
+
+```python
+image = Image(
+    "logo.png",
+    width=48,
+    color="cyan",
+    padding=1,
+)
+form.add_section(image, boxed=True)
+```
+
+`width` controls the terminal-cell resolution. When `height=None`, the height
+is derived from the source aspect ratio in Braille's 2x4 dot coordinate space.
+Pass an explicit height to constrain the image to a fixed section area. Images
+use 256-color cells when available and retain the configured `color` as the
+8-color or monochrome fallback.
 
 ### `Table`
 
@@ -309,7 +377,7 @@ form.add_list_input(
 ```
 
 List fields return `list[str]`. Without tools, users can add, edit, and delete
-plain text entries. With a `FilePicker` or `Calendar`, add and edit actions open
+plain text entries. With a `FilePicker`, `Calendar`, or `Clock`, add and edit actions open
 the attached tool.
 
 ### Static Sections and Separators

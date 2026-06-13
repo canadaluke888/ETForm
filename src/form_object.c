@@ -312,6 +312,8 @@ static void tform_section_element_free(TFormSectionElement *element) {
     }
     if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
         tform_table_free(&element->table);
+    } else if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+        braille_canvas_free(&element->canvas);
     } else {
         tform_text_style_free(&element->text);
     }
@@ -650,6 +652,27 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
+    int format_12h;
+    int include_seconds;
+} TFormClockObject;
+
+typedef struct {
+    PyObject_HEAD
+    BrailleCanvas canvas;
+    TFormTextColor color;
+    int padding;
+} TFormBrailleCanvasObject;
+
+typedef struct {
+    PyObject_HEAD
+    char *path;
+    BrailleCanvas canvas;
+    TFormTextColor color;
+    int padding;
+} TFormImageObject;
+
+typedef struct {
+    PyObject_HEAD
     TFormTable table;
 } TFormTableObject;
 
@@ -956,6 +979,436 @@ PyTypeObject TFormCalendarType = {
     .tp_new = PyType_GenericNew,
 };
 
+static int Clock_init(TFormClockObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"format", "include_seconds", NULL};
+    const char *format = "24h";
+    int include_seconds = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sp", kwlist, &format, &include_seconds)) {
+        return -1;
+    }
+    if (strcmp(format, "24h") != 0 && strcmp(format, "12h") != 0) {
+        PyErr_SetString(PyExc_ValueError, "format must be '24h' or '12h'");
+        return -1;
+    }
+    self->format_12h = strcmp(format, "12h") == 0;
+    self->include_seconds = include_seconds ? 1 : 0;
+    return 0;
+}
+
+static PyObject *Clock_repr(TFormClockObject *self) {
+    return PyUnicode_FromFormat(
+        "Clock(format='%s', include_seconds=%s)",
+        self->format_12h ? "12h" : "24h",
+        self->include_seconds ? "True" : "False"
+    );
+}
+
+static PyObject *Clock_get_format(TFormClockObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_FromString(self->format_12h ? "12h" : "24h");
+}
+
+static PyObject *Clock_get_include_seconds(TFormClockObject *self, void *closure) {
+    (void)closure;
+    return PyBool_FromLong(self->include_seconds);
+}
+
+static PyGetSetDef Clock_getset[] = {
+    {"format", (getter)Clock_get_format, NULL, "Clock display format.", NULL},
+    {"include_seconds", (getter)Clock_get_include_seconds, NULL, "Whether seconds are returned.", NULL},
+    {NULL, NULL, NULL, NULL, NULL},
+};
+
+PyTypeObject TFormClockType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.Clock",
+    .tp_basicsize = sizeof(TFormClockObject),
+    .tp_itemsize = 0,
+    .tp_repr = (reprfunc)Clock_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Tool that opens an interactive time picker for compatible fields.",
+    .tp_getset = Clock_getset,
+    .tp_init = (initproc)Clock_init,
+    .tp_new = PyType_GenericNew,
+};
+
+static PyObject *BrailleCanvas_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    TFormBrailleCanvasObject *self = (TFormBrailleCanvasObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+    memset(&self->canvas, 0, sizeof(self->canvas));
+    self->color = TFORM_TEXT_COLOR_DEFAULT;
+    self->padding = TFORM_DEFAULT_PADDING;
+    return (PyObject *)self;
+}
+
+static int BrailleCanvas_init(TFormBrailleCanvasObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"width", "height", "color", "padding", NULL};
+    int width;
+    int height;
+    const char *color_text = "default";
+    PyObject *padding_obj = Py_None;
+    TFormTextColor color;
+    int padding;
+    BrailleCanvas canvas;
+    memset(&canvas, 0, sizeof(canvas));
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|sO", kwlist,
+                                     &width, &height, &color_text, &padding_obj)) {
+        return -1;
+    }
+    if (parse_text_color(color_text, &color) < 0 ||
+        parse_padding(padding_obj, &padding) < 0) {
+        return -1;
+    }
+    if (braille_canvas_init(&canvas, width, height) < 0) {
+        PyErr_SetString(PyExc_ValueError, "width and height must be positive supported canvas dimensions");
+        return -1;
+    }
+    braille_canvas_free(&self->canvas);
+    self->canvas = canvas;
+    self->color = color;
+    self->padding = padding;
+    return 0;
+}
+
+static void BrailleCanvas_dealloc(TFormBrailleCanvasObject *self) {
+    braille_canvas_free(&self->canvas);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *BrailleCanvas_repr(TFormBrailleCanvasObject *self) {
+    return PyUnicode_FromFormat(
+        "BrailleCanvas(width=%d, height=%d, color='%s', padding=%d)",
+        self->canvas.char_width,
+        self->canvas.char_height,
+        color_name(self->color),
+        self->padding
+    );
+}
+
+static PyObject *BrailleCanvas_set_dot(TFormBrailleCanvasObject *self, PyObject *args) {
+    int x;
+    int y;
+    if (!PyArg_ParseTuple(args, "ii", &x, &y)) return NULL;
+    if (!braille_canvas_set_dot(&self->canvas, x, y)) {
+        PyErr_SetString(PyExc_ValueError, "dot coordinates are outside the canvas");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *BrailleCanvas_draw_line(TFormBrailleCanvasObject *self, PyObject *args) {
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    if (!PyArg_ParseTuple(args, "iiii", &x0, &y0, &x1, &y1)) return NULL;
+    if (braille_canvas_draw_line(&self->canvas, x0, y0, x1, y1) < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "canvas is not initialized");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *BrailleCanvas_draw_circle(TFormBrailleCanvasObject *self, PyObject *args) {
+    int center_x;
+    int center_y;
+    int radius;
+    if (!PyArg_ParseTuple(args, "iii", &center_x, &center_y, &radius)) return NULL;
+    if (radius < 0) {
+        PyErr_SetString(PyExc_ValueError, "radius must not be negative");
+        return NULL;
+    }
+    if (braille_canvas_draw_circle(&self->canvas, center_x, center_y, radius) < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "canvas is not initialized");
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *BrailleCanvas_draw_image(TFormBrailleCanvasObject *self, PyObject *args) {
+    PyObject *path_bytes = NULL;
+    const char *path;
+    int dots;
+    struct stat path_stat;
+    if (!PyArg_ParseTuple(args, "O&", PyUnicode_FSConverter, &path_bytes)) {
+        return NULL;
+    }
+    path = PyBytes_AS_STRING(path_bytes);
+    if (stat(path, &path_stat) != 0) {
+        PyErr_SetFromErrnoWithFilename(PyExc_OSError, path);
+        Py_DECREF(path_bytes);
+        return NULL;
+    }
+    dots = braille_canvas_draw_image(&self->canvas, path);
+    if (dots < 0) {
+        PyErr_Format(
+            PyExc_ValueError,
+            "unable to draw image '%s': %s",
+            path,
+            braille_canvas_image_error()
+        );
+        Py_DECREF(path_bytes);
+        return NULL;
+    }
+    Py_DECREF(path_bytes);
+    Py_RETURN_NONE;
+}
+
+static PyObject *BrailleCanvas_clear(TFormBrailleCanvasObject *self, PyObject *Py_UNUSED(ignored)) {
+    braille_canvas_clear(&self->canvas);
+    Py_RETURN_NONE;
+}
+
+static PyObject *BrailleCanvas_get_width(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->canvas.char_width);
+}
+
+static PyObject *BrailleCanvas_get_height(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->canvas.char_height);
+}
+
+static PyObject *BrailleCanvas_get_dot_width(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(braille_canvas_dot_width(&self->canvas));
+}
+
+static PyObject *BrailleCanvas_get_dot_height(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(braille_canvas_dot_height(&self->canvas));
+}
+
+static PyObject *BrailleCanvas_get_color(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_FromString(color_name(self->color));
+}
+
+static PyObject *BrailleCanvas_get_padding(TFormBrailleCanvasObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->padding);
+}
+
+static PyMethodDef BrailleCanvas_methods[] = {
+    {"set_dot", (PyCFunction)BrailleCanvas_set_dot, METH_VARARGS, "Set one Braille dot."},
+    {"draw_line", (PyCFunction)BrailleCanvas_draw_line, METH_VARARGS, "Draw a line in dot coordinates."},
+    {"draw_circle", (PyCFunction)BrailleCanvas_draw_circle, METH_VARARGS, "Draw a circle in dot coordinates."},
+    {"draw_image", (PyCFunction)BrailleCanvas_draw_image, METH_VARARGS, "Draw an image fitted to the canvas."},
+    {"clear", (PyCFunction)BrailleCanvas_clear, METH_NOARGS, "Clear all dots."},
+    {NULL, NULL, 0, NULL},
+};
+
+static PyGetSetDef BrailleCanvas_getset[] = {
+    {"width", (getter)BrailleCanvas_get_width, NULL, "Canvas width in terminal cells.", NULL},
+    {"height", (getter)BrailleCanvas_get_height, NULL, "Canvas height in terminal cells.", NULL},
+    {"dot_width", (getter)BrailleCanvas_get_dot_width, NULL, "Canvas width in Braille dots.", NULL},
+    {"dot_height", (getter)BrailleCanvas_get_dot_height, NULL, "Canvas height in Braille dots.", NULL},
+    {"color", (getter)BrailleCanvas_get_color, NULL, "Canvas color.", NULL},
+    {"padding", (getter)BrailleCanvas_get_padding, NULL, "Canvas vertical padding.", NULL},
+    {NULL, NULL, NULL, NULL, NULL},
+};
+
+PyTypeObject TFormBrailleCanvasType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.BrailleCanvas",
+    .tp_basicsize = sizeof(TFormBrailleCanvasObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)BrailleCanvas_dealloc,
+    .tp_repr = (reprfunc)BrailleCanvas_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Static Unicode Braille canvas for form sections.",
+    .tp_methods = BrailleCanvas_methods,
+    .tp_getset = BrailleCanvas_getset,
+    .tp_init = (initproc)BrailleCanvas_init,
+    .tp_new = BrailleCanvas_new,
+};
+
+static PyObject *Image_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    TFormImageObject *self = (TFormImageObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+    self->path = NULL;
+    memset(&self->canvas, 0, sizeof(self->canvas));
+    self->color = TFORM_TEXT_COLOR_DEFAULT;
+    self->padding = TFORM_DEFAULT_PADDING;
+    return (PyObject *)self;
+}
+
+static int Image_init(TFormImageObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"path", "width", "height", "color", "padding", NULL};
+    PyObject *path_bytes = NULL;
+    int width = 36;
+    PyObject *height_obj = Py_None;
+    const char *color_text = "default";
+    PyObject *padding_obj = Py_None;
+    const char *path;
+    struct stat path_stat;
+    int source_width;
+    int source_height;
+    int height;
+    int padding;
+    TFormTextColor color;
+    BrailleCanvas canvas;
+    char *path_copy;
+
+    memset(&canvas, 0, sizeof(canvas));
+    if (!PyArg_ParseTupleAndKeywords(
+            args,
+            kwargs,
+            "O&|iOsO",
+            kwlist,
+            PyUnicode_FSConverter,
+            &path_bytes,
+            &width,
+            &height_obj,
+            &color_text,
+            &padding_obj
+        )) {
+        return -1;
+    }
+    path = PyBytes_AS_STRING(path_bytes);
+    if (stat(path, &path_stat) != 0) {
+        PyErr_SetFromErrnoWithFilename(PyExc_OSError, path);
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    if (width <= 0) {
+        PyErr_SetString(PyExc_ValueError, "width must be positive");
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    if (parse_text_color(color_text, &color) < 0 ||
+        parse_padding(padding_obj, &padding) < 0) {
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    if (braille_canvas_image_size(path, &source_width, &source_height) < 0) {
+        PyErr_Format(
+            PyExc_ValueError,
+            "unable to load image '%s': %s",
+            path,
+            braille_canvas_image_error()
+        );
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    if (height_obj == Py_None) {
+        long long numerator = (long long)source_height * (long long)width;
+        long long denominator = (long long)source_width * 2LL;
+        height = (int)((numerator + denominator - 1) / denominator);
+        if (height < 1) height = 1;
+    } else {
+        long parsed_height = PyLong_AsLong(height_obj);
+        if (parsed_height == -1 && PyErr_Occurred()) {
+            Py_DECREF(path_bytes);
+            return -1;
+        }
+        if (parsed_height <= 0 || parsed_height > INT_MAX) {
+            PyErr_SetString(PyExc_ValueError, "height must be positive or None");
+            Py_DECREF(path_bytes);
+            return -1;
+        }
+        height = (int)parsed_height;
+    }
+    if (braille_canvas_init(&canvas, width, height) < 0) {
+        PyErr_SetString(PyExc_ValueError, "image dimensions are too large");
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    if (braille_canvas_draw_image(&canvas, path) < 0) {
+        PyErr_Format(
+            PyExc_ValueError,
+            "unable to draw image '%s': %s",
+            path,
+            braille_canvas_image_error()
+        );
+        braille_canvas_free(&canvas);
+        Py_DECREF(path_bytes);
+        return -1;
+    }
+    path_copy = tform_strdup(path);
+    Py_DECREF(path_bytes);
+    if (!path_copy) {
+        braille_canvas_free(&canvas);
+        return -1;
+    }
+    free(self->path);
+    braille_canvas_free(&self->canvas);
+    self->path = path_copy;
+    self->canvas = canvas;
+    self->color = color;
+    self->padding = padding;
+    return 0;
+}
+
+static void Image_dealloc(TFormImageObject *self) {
+    free(self->path);
+    braille_canvas_free(&self->canvas);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *Image_repr(TFormImageObject *self) {
+    return PyUnicode_FromFormat(
+        "Image(path='%s', width=%d, height=%d, color='%s', padding=%d)",
+        self->path ? self->path : "",
+        self->canvas.char_width,
+        self->canvas.char_height,
+        color_name(self->color),
+        self->padding
+    );
+}
+
+static PyObject *Image_get_path(TFormImageObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_DecodeFSDefault(self->path ? self->path : "");
+}
+
+static PyObject *Image_get_width(TFormImageObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->canvas.char_width);
+}
+
+static PyObject *Image_get_height(TFormImageObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->canvas.char_height);
+}
+
+static PyObject *Image_get_color(TFormImageObject *self, void *closure) {
+    (void)closure;
+    return PyUnicode_FromString(color_name(self->color));
+}
+
+static PyObject *Image_get_padding(TFormImageObject *self, void *closure) {
+    (void)closure;
+    return PyLong_FromLong(self->padding);
+}
+
+static PyGetSetDef Image_getset[] = {
+    {"path", (getter)Image_get_path, NULL, "Source image path.", NULL},
+    {"width", (getter)Image_get_width, NULL, "Rendered width in terminal cells.", NULL},
+    {"height", (getter)Image_get_height, NULL, "Rendered height in terminal cells.", NULL},
+    {"color", (getter)Image_get_color, NULL, "Fallback image color.", NULL},
+    {"padding", (getter)Image_get_padding, NULL, "Image vertical padding.", NULL},
+    {NULL, NULL, NULL, NULL, NULL},
+};
+
+PyTypeObject TFormImageType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.Image",
+    .tp_basicsize = sizeof(TFormImageObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)Image_dealloc,
+    .tp_repr = (reprfunc)Image_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Portable image rendered with Unicode Braille cells.",
+    .tp_getset = Image_getset,
+    .tp_init = (initproc)Image_init,
+    .tp_new = Image_new,
+};
+
 static PyObject *Table_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
@@ -1128,7 +1581,14 @@ static int apply_tool(TFormField *field, PyObject *tool) {
         field->has_calendar = 1;
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "tools must contain FilePicker or Calendar instances");
+    if (PyObject_TypeCheck(tool, &TFormClockType)) {
+        TFormClockObject *clock = (TFormClockObject *)tool;
+        field->has_clock = 1;
+        field->clock_format_12h = clock->format_12h;
+        field->clock_include_seconds = clock->include_seconds;
+        return 0;
+    }
+    PyErr_SetString(PyExc_TypeError, "tools must contain FilePicker, Calendar, or Clock instances");
     return -1;
 }
 
@@ -1136,10 +1596,12 @@ static int apply_tools(TFormField *field, PyObject *tools) {
     if (!tools || tools == Py_None) {
         return 0;
     }
-    if (PyObject_TypeCheck(tools, &TFormFilePickerType) || PyObject_TypeCheck(tools, &TFormCalendarType)) {
+    if (PyObject_TypeCheck(tools, &TFormFilePickerType) ||
+        PyObject_TypeCheck(tools, &TFormCalendarType) ||
+        PyObject_TypeCheck(tools, &TFormClockType)) {
         return apply_tool(field, tools);
     }
-    PyObject *seq = PySequence_Fast(tools, "tools must be a FilePicker, Calendar, or a sequence of tools");
+    PyObject *seq = PySequence_Fast(tools, "tools must be a FilePicker, Calendar, Clock, or a sequence of tools");
     if (!seq) {
         return -1;
     }
@@ -1268,14 +1730,43 @@ static int tform_section_append_table(TFormField *field, const TFormTable *table
     return 0;
 }
 
+static int tform_section_append_canvas(
+    TFormField *field,
+    const BrailleCanvas *canvas,
+    TFormTextColor color,
+    int padding
+) {
+    if (!field || !canvas) return -1;
+    if (tform_section_ensure_capacity(field, field->section_element_count + 1) < 0) return -1;
+    TFormSectionElement *element = &field->section_elements[field->section_element_count];
+    memset(element, 0, sizeof(*element));
+    element->kind = TFORM_SECTION_ELEMENT_BRAILLE_CANVAS;
+    if (braille_canvas_copy(&element->canvas, canvas) < 0) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    element->canvas_color = color;
+    element->canvas_padding = padding;
+    field->section_element_count++;
+    return 0;
+}
+
 static int tform_section_append_object(TFormField *field, PyObject *item) {
     if (PyObject_TypeCheck(item, &TFormTableType)) {
         TFormTableObject *table = (TFormTableObject *)item;
         return tform_section_append_table(field, &table->table);
     }
+    if (PyObject_TypeCheck(item, &TFormBrailleCanvasType)) {
+        TFormBrailleCanvasObject *canvas = (TFormBrailleCanvasObject *)item;
+        return tform_section_append_canvas(field, &canvas->canvas, canvas->color, canvas->padding);
+    }
+    if (PyObject_TypeCheck(item, &TFormImageType)) {
+        TFormImageObject *image = (TFormImageObject *)item;
+        return tform_section_append_canvas(field, &image->canvas, image->color, image->padding);
+    }
     TFormTextStyle text_style;
     if (parse_label_object(item, 1, &text_style) < 0) {
-        PyErr_SetString(PyExc_TypeError, "section items must be str, Text, or Table");
+        PyErr_SetString(PyExc_TypeError, "section items must be str, Text, Table, BrailleCanvas, or Image");
         return -1;
     }
     int result = tform_section_append_text(field, &text_style);

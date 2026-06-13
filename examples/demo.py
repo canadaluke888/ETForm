@@ -4,15 +4,27 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-from tform import Calendar, FilePicker, Form, Table, Text
+from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 
 
 def build_form() -> Form:
+    repository_root = Path(__file__).resolve().parents[1]
     form = Form(title="Developer Settings")
     file_picker = FilePicker(mode="file", start_dir=".")
     directory_picker = FilePicker(mode="directory", start_dir=".")
     calendar = Calendar()
+    clock = Clock(format="12h", include_seconds=True)
+    canvas = BrailleCanvas(18, 6, color="cyan", padding=1)
+    canvas.draw_circle(canvas.dot_width // 2, canvas.dot_height // 2, 9)
+    canvas.draw_line(2, canvas.dot_height - 3, canvas.dot_width - 3, 2)
+    image = Image(
+        repository_root / "assets" / "logo.png",
+        width=36,
+        color="green",
+        padding=1,
+    )
     command_table = Table(
         title=Text("Command Defaults", align="center", bold=True, color="yellow"),
         color="cyan",
@@ -36,6 +48,8 @@ def build_form() -> Form:
             wrap_text=True,
         ),
         command_table,
+        canvas,
+        image,
         boxed=True,
     )
     form.add_separator(Text("Workspace", color="yellow", bold=True), color="cyan")
@@ -87,6 +101,16 @@ def build_form() -> Form:
         description="Target date for the next local release checkpoint.",
         field_color="yellow",
         tools=calendar,
+    )
+
+    form.add_text_input(
+        key="release_time",
+        label=Text("Release Time", align="center", color="cyan"),
+        default="09:30:00 AM",
+        placeholder=Text("hh:mm:ss AM", align="center", color="cyan", dim=True),
+        description="Target local time for the next release checkpoint.",
+        field_color="cyan",
+        tools=clock,
     )
 
     form.add_separator(Text("Editor", align="center", color="green"), color="yellow")
@@ -189,6 +213,15 @@ def build_form() -> Form:
         description="Important project dates selected with the calendar tool.",
         field_color="yellow",
         tools=calendar,
+    )
+
+    form.add_list_input(
+        key="reminder_times",
+        label=Text("Reminder Times", align="center", color="cyan"),
+        default=["09:30:00 AM"],
+        description="Local reminder times selected with the clock tool.",
+        field_color="cyan",
+        tools=clock,
     )
 
     form.add_list_input(

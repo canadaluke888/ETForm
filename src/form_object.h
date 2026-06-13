@@ -1,6 +1,7 @@
 #ifndef TFORM_FORM_OBJECT_H
 #define TFORM_FORM_OBJECT_H
 
+#include "braille_canvas.h"
 #include "form_helpers.h"
 
 #include <Python.h>
@@ -76,13 +77,17 @@ typedef struct {
 
 typedef enum {
     TFORM_SECTION_ELEMENT_TEXT,
-    TFORM_SECTION_ELEMENT_TABLE
+    TFORM_SECTION_ELEMENT_TABLE,
+    TFORM_SECTION_ELEMENT_BRAILLE_CANVAS
 } TFormSectionElementKind;
 
 typedef struct {
     TFormSectionElementKind kind;
     TFormTextStyle text;
     TFormTable table;
+    BrailleCanvas canvas;
+    TFormTextColor canvas_color;
+    int canvas_padding;
 } TFormSectionElement;
 
 typedef struct {
@@ -97,6 +102,9 @@ typedef struct {
     int file_picker_mode;
     char *file_picker_start_dir;
     int has_calendar;
+    int has_clock;
+    int clock_format_12h;
+    int clock_include_seconds;
     int has_min;
     int min_value;
     int has_max;
@@ -135,6 +143,9 @@ extern PyTypeObject TFormType;
 extern PyTypeObject TFormTextType;
 extern PyTypeObject TFormFilePickerType;
 extern PyTypeObject TFormCalendarType;
+extern PyTypeObject TFormClockType;
+extern PyTypeObject TFormBrailleCanvasType;
+extern PyTypeObject TFormImageType;
 extern PyTypeObject TFormTableType;
 
 void tform_text_style_init(TFormTextStyle *style);

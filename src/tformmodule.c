@@ -22,6 +22,15 @@ PyMODINIT_FUNC PyInit__tform(void) {
     if (PyType_Ready(&TFormCalendarType) < 0) {
         return NULL;
     }
+    if (PyType_Ready(&TFormClockType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormBrailleCanvasType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormImageType) < 0) {
+        return NULL;
+    }
     if (PyType_Ready(&TFormTableType) < 0) {
         return NULL;
     }
@@ -52,6 +61,24 @@ PyMODINIT_FUNC PyInit__tform(void) {
     Py_INCREF(&TFormCalendarType);
     if (PyModule_AddObject(module, "Calendar", (PyObject *)&TFormCalendarType) < 0) {
         Py_DECREF(&TFormCalendarType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormClockType);
+    if (PyModule_AddObject(module, "Clock", (PyObject *)&TFormClockType) < 0) {
+        Py_DECREF(&TFormClockType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormBrailleCanvasType);
+    if (PyModule_AddObject(module, "BrailleCanvas", (PyObject *)&TFormBrailleCanvasType) < 0) {
+        Py_DECREF(&TFormBrailleCanvasType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormImageType);
+    if (PyModule_AddObject(module, "Image", (PyObject *)&TFormImageType) < 0) {
+        Py_DECREF(&TFormImageType);
         Py_DECREF(module);
         return NULL;
     }

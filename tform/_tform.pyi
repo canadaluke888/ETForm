@@ -1,12 +1,14 @@
 from collections.abc import Sequence
+from os import PathLike
 from typing import Any, Literal
 
 LabelAlign = Literal["left", "center", "right"]
 TextColor = Literal["default", "white", "cyan", "yellow", "green", "blue", "magenta", "red"]
 FilePickerMode = Literal["file", "directory"]
+ClockFormat = Literal["24h", "12h"]
 CheckboxTick = Literal["x", "block", "dot"]
 Label = str | "Text"
-SectionItem = str | "Text" | "Table"
+SectionItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
 
 
 class Text:
@@ -69,6 +71,84 @@ class Calendar:
     def __init__(self) -> None: ...
 
 
+class Clock:
+    def __init__(
+        self,
+        format: ClockFormat = "24h",
+        include_seconds: bool = False,
+    ) -> None: ...
+
+    @property
+    def format(self) -> ClockFormat: ...
+
+    @property
+    def include_seconds(self) -> bool: ...
+
+
+class BrailleCanvas:
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        color: TextColor = "default",
+        padding: int = 1,
+    ) -> None: ...
+
+    @property
+    def width(self) -> int: ...
+
+    @property
+    def height(self) -> int: ...
+
+    @property
+    def dot_width(self) -> int: ...
+
+    @property
+    def dot_height(self) -> int: ...
+
+    @property
+    def color(self) -> TextColor: ...
+
+    @property
+    def padding(self) -> int: ...
+
+    def set_dot(self, x: int, y: int) -> None: ...
+
+    def draw_line(self, x0: int, y0: int, x1: int, y1: int) -> None: ...
+
+    def draw_circle(self, center_x: int, center_y: int, radius: int) -> None: ...
+
+    def draw_image(self, path: str | PathLike[str]) -> None: ...
+
+    def clear(self) -> None: ...
+
+
+class Image:
+    def __init__(
+        self,
+        path: str | PathLike[str],
+        width: int = 36,
+        height: int | None = None,
+        color: TextColor = "default",
+        padding: int = 1,
+    ) -> None: ...
+
+    @property
+    def path(self) -> str: ...
+
+    @property
+    def width(self) -> int: ...
+
+    @property
+    def height(self) -> int: ...
+
+    @property
+    def color(self) -> TextColor: ...
+
+    @property
+    def padding(self) -> int: ...
+
+
 class Table:
     def __init__(
         self,
@@ -109,7 +189,7 @@ class Form:
         description: str = "",
         field_color: TextColor = "default",
         wrap_text: bool = False,
-        tools: FilePicker | Calendar | Sequence[FilePicker | Calendar] | None = None,
+        tools: FilePicker | Calendar | Clock | Sequence[FilePicker | Calendar | Clock] | None = None,
         padding: int = 1,
     ) -> None: ...
 
@@ -186,7 +266,7 @@ class Form:
         default: Sequence[Label] | None = None,
         description: str = "",
         field_color: TextColor = "default",
-        tools: FilePicker | Calendar | Sequence[FilePicker | Calendar] | None = None,
+        tools: FilePicker | Calendar | Clock | Sequence[FilePicker | Calendar | Clock] | None = None,
         padding: int = 1,
     ) -> None: ...
 

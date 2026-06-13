@@ -1,3 +1,3 @@
-from ._tform import Calendar, FilePicker, Form, Table, Text
+from ._tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 
-__all__ = ["Calendar", "FilePicker", "Form", "Table", "Text"]
+__all__ = ["BrailleCanvas", "Calendar", "Clock", "FilePicker", "Form", "Image", "Table", "Text"]

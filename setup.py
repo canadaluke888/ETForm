@@ -7,6 +7,7 @@ sources = [
     "src/form_runtime.c",
     "src/form_helpers.c",
     "src/dialogs.c",
+    "src/braille_canvas.c",
     "src/panel_manager.c",
     "src/ui_footer.c",
     "src/ui_text.c",
@@ -16,7 +17,7 @@ sources = [
 
 setup(
     name="tform",
-    version="0.7.2",
+    version="0.11.1",
     description="Native ncurses forms styled after Ghostcode Config Edit",
     packages=["tform"],
     package_data={"tform": ["py.typed", "*.pyi"]},
@@ -25,7 +26,8 @@ setup(
             "tform._tform",
             sources=sources,
             include_dirs=["src"],
-            libraries=["ncursesw", "panelw"],
+            depends=["src/braille_canvas.h", "src/third_party/stb_image.h"],
+            libraries=["ncursesw", "panelw", "m"],
             extra_compile_args=[
                 "-std=c11",
                 "-D_POSIX_C_SOURCE=200809L",

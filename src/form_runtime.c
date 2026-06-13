@@ -567,6 +567,14 @@ static char *open_field_tool(TFormField *field, const char *initial_value) {
     if (field->has_calendar) {
         return ghostcode_calendar_dialog(field->label.value, initial_value);
     }
+    if (field->has_clock) {
+        return ghostcode_clock_dialog(
+            field->label.value,
+            initial_value,
+            field->clock_format_12h,
+            field->clock_include_seconds
+        );
+    }
     if (field->has_file_picker) {
         return ghostcode_file_picker_dialog(
             field->label.value,
@@ -929,6 +937,9 @@ static int section_element_height(TFormSectionElement *element, int width) {
     }
     if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
         return table_display_height(&element->table);
+    }
+    if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+        return element->canvas.char_height + element->canvas_padding * 2;
     }
     if (element->text.wrap_text) {
         return text_section_wrap_line_count(element->text.value, width);
@@ -1953,6 +1964,56 @@ static void draw_section_box(WINDOW *win, int y, int x, int width, int height, i
     wattroff(win, attr);
 }
 
+static void draw_braille_canvas(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    BrailleCanvas *canvas,
+    TFormTextColor color,
+    int clip_top,
+    int clip_bottom
+) {
+    TFormTextStyle canvas_style;
+    attr_t saved_attrs;
+    short saved_pair;
+    int fallback_attr;
+    attr_t fallback_attrs;
+    short fallback_pair;
+
+    if (!win || !canvas || !canvas->cells || width <= 0) return;
+    tform_text_style_init(&canvas_style);
+    canvas_style.color = color;
+    fallback_attr = text_attr(&canvas_style, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+    fallback_attrs = (attr_t)(fallback_attr & ~A_COLOR);
+    fallback_pair = (short)PAIR_NUMBER(fallback_attr);
+    wattr_get(win, &saved_attrs, &saved_pair, NULL);
+    for (int canvas_y = 0; canvas_y < canvas->char_height; canvas_y++) {
+        int draw_y = y + canvas_y;
+        if (draw_y < clip_top || draw_y >= clip_bottom) continue;
+        if (wmove(win, draw_y, x) == ERR) continue;
+        int columns = canvas->char_width < width ? canvas->char_width : width;
+        for (int canvas_x = 0; canvas_x < columns; canvas_x++) {
+            char glyph[4];
+            short image_pair = ghostcode_image_color_pair(
+                braille_canvas_cell_color(canvas, canvas_x, canvas_y)
+            );
+            wattr_set(
+                win,
+                fallback_attrs,
+                image_pair ? image_pair : fallback_pair,
+                NULL
+            );
+            braille_canvas_encode_cell(
+                braille_canvas_cell(canvas, canvas_x, canvas_y),
+                glyph
+            );
+            if (waddnstr(win, glyph, 3) == ERR) break;
+        }
+    }
+    wattr_set(win, saved_attrs, saved_pair, NULL);
+}
+
 static void draw_section(
     WINDOW *win,
     int y,
@@ -1989,6 +2050,23 @@ static void draw_section(
         int element_height = section_element_height(element, inner_width);
         if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
             draw_table(win, row, inner_x, inner_width, &element->table, clip_top, clip_bottom);
+        } else if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+            int canvas_y = row + element->canvas_padding;
+            int visible_top = canvas_y < clip_top ? clip_top : canvas_y;
+            int visible_bottom = canvas_y + element->canvas.char_height;
+            if (visible_bottom > clip_bottom) visible_bottom = clip_bottom;
+            if (visible_top < visible_bottom) {
+                draw_braille_canvas(
+                    win,
+                    canvas_y,
+                    inner_x,
+                    inner_width,
+                    &element->canvas,
+                    element->canvas_color,
+                    clip_top,
+                    clip_bottom
+                );
+            }
         } else {
             draw_text_section(
                 win,
@@ -2225,6 +2303,8 @@ static void draw_form(
             ghostcode_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
         } else if (field->has_calendar) {
             ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
+        } else if (field->has_clock) {
+            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Time  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_file_picker) {
             ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
         } else {
@@ -2243,6 +2323,7 @@ static void draw_form(
 int tform_run_form(TFormObject *form) {
     setlocale(LC_ALL, "");
     ghostcode_disable_flow_control();
+    setenv("TERM", "xterm-256color", 0);
     initscr();
     cbreak();
     noecho();
@@ -2388,7 +2469,7 @@ int tform_run_form(TFormObject *form) {
             } else if (ch == KEY_DOWN && field->list_value.count > 0) {
                 list_selected = tform_next_form_index(list_selected, field->list_value.count, 1);
             } else if (ch == 'a' || ch == 'A') {
-                if (field->has_calendar || field->has_file_picker) {
+                if (field->has_calendar || field->has_clock || field->has_file_picker) {
                     char *value = open_field_tool(field, NULL);
                     if (value) {
                         trim_in_place(value);
@@ -2406,7 +2487,7 @@ int tform_run_form(TFormObject *form) {
                     list_inputting = 1;
                 }
             } else if ((ch == 'e' || ch == 'E') && field->list_value.count > 0) {
-                if (field->has_calendar || field->has_file_picker) {
+                if (field->has_calendar || field->has_clock || field->has_file_picker) {
                     char *value = open_field_tool(
                         field,
                         field->list_value.items ? field->list_value.items[list_selected] : NULL
@@ -2478,7 +2559,7 @@ int tform_run_form(TFormObject *form) {
                 reset_numeric_scroll(&numeric_scroll);
             } else if (form->fields[selected].kind == TFORM_FIELD_TEXT) {
                 TFormField *field = &form->fields[selected];
-                if (field->has_calendar || field->has_file_picker) {
+                if (field->has_calendar || field->has_clock || field->has_file_picker) {
                     char *value = open_field_tool(field, field->text_value);
                     if (value) {
                         replace_string(&field->text_value, value, 1);
