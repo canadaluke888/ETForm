@@ -148,6 +148,10 @@ appear, then call `run()`.
 `run()` returns a `dict[str, Any]` when the user saves the form, or `None` when
 the user exits without saving. Static sections, tables, text sections, and
 separators are visual only and are not included in the returned dictionary.
+When static content is taller than the viewport, Up/Down scroll through it in
+steps without selecting a field. Page Up/Page Down move by larger viewport
+steps, and Home/End jump to the document boundaries. Field selection resumes
+when the pending field reaches the visible viewport.
 
 ### `Text`
 

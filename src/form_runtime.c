@@ -732,18 +732,18 @@ static int first_selectable_field(TFormObject *form) {
     return -1;
 }
 
-static int next_selectable_field(TFormObject *form, int current, int dir) {
+static int adjacent_selectable_field(TFormObject *form, int current, int dir) {
     if (!form || form->field_count <= 0 || dir == 0) {
-        return current;
+        return -1;
     }
-    int index = current;
-    for (int step = 0; step < form->field_count; step++) {
-        index = tform_next_form_index(index, form->field_count, dir);
+    for (int index = current + dir;
+         index >= 0 && index < form->field_count;
+         index += dir) {
         if (field_is_selectable(&form->fields[index])) {
             return index;
         }
     }
-    return current;
+    return -1;
 }
 
 static int field_inner_width(int width) {
@@ -1022,6 +1022,120 @@ static int total_form_rows(TFormObject *form, int width) {
         rows += field_display_height(&form->fields[i], width);
     }
     return rows;
+}
+
+static int form_viewport_rows(void) {
+    int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
+    int rows = body_h - 1;
+    return rows > 0 ? rows : 1;
+}
+
+static int form_max_top(TFormObject *form, int width) {
+    int max_top = total_form_rows(form, width) - 1 - form_viewport_rows();
+    return max_top > 0 ? max_top : 0;
+}
+
+static int field_fully_visible(TFormObject *form, int index, int width, int top) {
+    if (!form || index < 0 || index >= form->field_count) {
+        return 0;
+    }
+    int field_top = field_top_row(form, index, width) - 1;
+    int field_height = field_display_height(&form->fields[index], width);
+    int viewport_rows = form_viewport_rows();
+    if (field_height > viewport_rows) {
+        return field_top < top + viewport_rows && field_top + field_height > top;
+    }
+    return field_top >= top && field_top + field_height <= top + viewport_rows;
+}
+
+static int viewport_scroll_step(void) {
+    int step = form_viewport_rows() / 3;
+    return step > 2 ? step : 3;
+}
+
+static int scroll_toward_field(
+    TFormObject *form,
+    int target,
+    int direction,
+    int width,
+    int *top
+) {
+    int viewport_rows;
+    int target_top;
+    int target_bottom;
+    int destination;
+    int step;
+
+    if (!form || !top || target < 0 || target >= form->field_count) {
+        return 0;
+    }
+    viewport_rows = form_viewport_rows();
+    target_top = field_top_row(form, target, width) - 1;
+    target_bottom = target_top + field_display_height(&form->fields[target], width);
+    destination = direction > 0 ? target_bottom - viewport_rows : target_top;
+    if (destination < 0) destination = 0;
+    if (destination > form_max_top(form, width)) {
+        destination = form_max_top(form, width);
+    }
+    step = viewport_scroll_step();
+    if (*top < destination) {
+        *top += step;
+        if (*top > destination) *top = destination;
+    } else if (*top > destination) {
+        *top -= step;
+        if (*top < destination) *top = destination;
+    }
+    return field_fully_visible(form, target, width, *top);
+}
+
+static void scroll_document(TFormObject *form, int direction, int width, int *top) {
+    int max_top;
+    int step;
+
+    if (!top || direction == 0) return;
+    max_top = form_max_top(form, width);
+    step = viewport_scroll_step();
+    *top += direction > 0 ? step : -step;
+    if (*top < 0) *top = 0;
+    if (*top > max_top) *top = max_top;
+}
+
+static void page_document(TFormObject *form, int direction, int width, int *top) {
+    int max_top;
+    int step;
+
+    if (!top || direction == 0) return;
+    max_top = form_max_top(form, width);
+    step = form_viewport_rows() - 2;
+    if (step < 3) step = 3;
+    *top += direction > 0 ? step : -step;
+    if (*top < 0) *top = 0;
+    if (*top > max_top) *top = max_top;
+}
+
+static int selectable_field_in_view(
+    TFormObject *form,
+    int direction,
+    int width,
+    int top
+) {
+    if (!form || direction == 0) return -1;
+    if (direction > 0) {
+        for (int index = 0; index < form->field_count; index++) {
+            if (field_is_selectable(&form->fields[index]) &&
+                field_fully_visible(form, index, width, top)) {
+                return index;
+            }
+        }
+    } else {
+        for (int index = form->field_count - 1; index >= 0; index--) {
+            if (field_is_selectable(&form->fields[index]) &&
+                field_fully_visible(form, index, width, top)) {
+                return index;
+            }
+        }
+    }
+    return -1;
 }
 
 static int aligned_text_x(int base_x, int width, int text_width, TFormLabelAlign align, int edge_offset) {
@@ -2116,6 +2230,7 @@ static void draw_form(
     int list_selected,
     int list_inputting,
     int checkbox_selected,
+    int selection_active,
     int *top
 ) {
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
@@ -2143,11 +2258,9 @@ static void draw_form(
     if (viewport_rows < 1) {
         viewport_rows = 1;
     }
-    int selected_top = field_top_row(form, selected, form_width) - 1;
-    int selected_bottom = selected_top + field_display_height(&form->fields[selected], form_width);
-    if (selected == first_selectable_field(form)) {
-        *top = 0;
-    } else {
+    if (selection_active && selected >= 0 && selected < form->field_count) {
+        int selected_top = field_top_row(form, selected, form_width) - 1;
+        int selected_bottom = selected_top + field_display_height(&form->fields[selected], form_width);
         if (selected_top < *top) {
             *top = selected_top;
         }
@@ -2155,10 +2268,7 @@ static void draw_form(
             *top = selected_bottom - viewport_rows;
         }
     }
-    int max_top = total_form_rows(form, form_width) - 1 - viewport_rows;
-    if (max_top < 0) {
-        max_top = 0;
-    }
+    int max_top = form_max_top(form, form_width);
     if (*top > max_top) {
         *top = max_top;
     }
@@ -2243,11 +2353,11 @@ static void draw_form(
             form_x,
             form_width,
             content_height,
-            index == selected,
-            edit_mode != TFORM_EDIT_NONE && index == selected,
-            edit_mode == TFORM_EDIT_TEXT && index == selected,
+            selection_active && index == selected,
+            selection_active && edit_mode != TFORM_EDIT_NONE && index == selected,
+            selection_active && edit_mode == TFORM_EDIT_TEXT && index == selected,
             form->fields[index].wrap_text,
-            index == selected ? text_cursor : 0,
+            selection_active && index == selected ? text_cursor : 0,
             &form->fields[index].label,
             form->fields[index].field_color,
             value,
@@ -2284,7 +2394,7 @@ static void draw_form(
                 body_h
             );
         }
-        if (index == selected && field_is_selectable(&form->fields[index])) {
+        if (selection_active && index == selected && field_is_selectable(&form->fields[index])) {
             draw_selection_pointer(main_panel->win, content_y, content_height, form_x, body_h);
         }
     }
@@ -2312,6 +2422,8 @@ static void draw_form(
         }
     } else if (edit_mode == TFORM_EDIT_CHECKBOX) {
         ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
+    } else if (!selection_active) {
+        ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
     } else {
         ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Field  [Enter] Edit  [I] Info  [Ctrl+S] Save  [Q] Exit");
     }
@@ -2352,6 +2464,11 @@ int tform_run_form(TFormObject *form) {
         selected = 0;
     }
     int top = 0;
+    int selection_active = selected >= 0 &&
+        selected < form->field_count &&
+        field_fully_visible(form, selected, form_width_from_cols(), top);
+    int pending_selected = selection_active ? -1 : selected;
+    int scroll_direction = 1;
     int text_cursor = 0;
     int list_selected = 0;
     int list_inputting = 0;
@@ -2361,7 +2478,19 @@ int tform_run_form(TFormObject *form) {
     reset_numeric_scroll(&numeric_scroll);
     int result = 0;
     for (;;) {
-        draw_form(main_panel, footer_panel, form, selected, edit_mode, text_cursor, list_selected, list_inputting, checkbox_selected, &top);
+        draw_form(
+            main_panel,
+            footer_panel,
+            form,
+            selected,
+            edit_mode,
+            text_cursor,
+            list_selected,
+            list_inputting,
+            checkbox_selected,
+            selection_active,
+            &top
+        );
         int ch = read_form_key(main_panel->win);
         if (edit_mode == TFORM_EDIT_TEXT) {
             TFormField *field = &form->fields[selected];
@@ -2543,15 +2672,131 @@ int tform_run_form(TFormObject *form) {
         if (ch == 'q' || ch == 'Q') {
             break;
         }
-        if (ch == KEY_UP) {
-            selected = next_selectable_field(form, selected, -1);
-            if (selected == first_selectable_field(form)) {
+        if (!selection_active) {
+            int width = form_width_from_cols();
+            if (ch == KEY_DOWN || ch == KEY_UP) {
+                int direction = ch == KEY_DOWN ? 1 : -1;
+                if (direction != scroll_direction) {
+                    pending_selected = selected;
+                    scroll_direction = direction;
+                }
+                if (pending_selected >= 0) {
+                    if (scroll_toward_field(
+                            form,
+                            pending_selected,
+                            scroll_direction,
+                            width,
+                            &top
+                        )) {
+                        selected = pending_selected;
+                        pending_selected = -1;
+                        selection_active = 1;
+                    }
+                } else {
+                    scroll_document(form, direction, width, &top);
+                }
+            } else if (ch == KEY_NPAGE || ch == KEY_PPAGE) {
+                int direction = ch == KEY_NPAGE ? 1 : -1;
+                page_document(form, direction, width, &top);
+                int visible = selectable_field_in_view(form, direction, width, top);
+                if (visible >= 0) {
+                    selected = visible;
+                    pending_selected = -1;
+                    selection_active = 1;
+                } else {
+                    pending_selected = -1;
+                    scroll_direction = direction;
+                }
+            } else if (ch == KEY_HOME) {
                 top = 0;
+                pending_selected = first_selectable_field(form);
+                scroll_direction = 1;
+                if (pending_selected >= 0 &&
+                    field_fully_visible(form, pending_selected, width, top)) {
+                    selected = pending_selected;
+                    pending_selected = -1;
+                    selection_active = 1;
+                }
+            } else if (ch == KEY_END) {
+                top = form_max_top(form, width);
+                pending_selected = selectable_field_in_view(form, -1, width, top);
+                scroll_direction = -1;
+                if (pending_selected >= 0) {
+                    selected = pending_selected;
+                    pending_selected = -1;
+                    selection_active = 1;
+                } else {
+                    pending_selected = selected;
+                }
+            } else if (ch == CTRL_S) {
+                result = 1;
+                break;
+            }
+            continue;
+        }
+        if (ch == KEY_UP) {
+            int previous = adjacent_selectable_field(form, selected, -1);
+            int width = form_width_from_cols();
+            if (previous >= 0 && field_fully_visible(form, previous, width, top)) {
+                selected = previous;
+            } else if (previous >= 0 || top > 0) {
+                pending_selected = previous;
+                scroll_direction = -1;
+                selection_active = 0;
+                if (pending_selected >= 0 &&
+                    scroll_toward_field(form, pending_selected, -1, width, &top)) {
+                    selected = pending_selected;
+                    pending_selected = -1;
+                    selection_active = 1;
+                } else if (pending_selected < 0) {
+                    scroll_document(form, -1, width, &top);
+                }
             }
         } else if (ch == KEY_DOWN) {
-            selected = next_selectable_field(form, selected, 1);
-            if (selected == first_selectable_field(form)) {
-                top = 0;
+            int next = adjacent_selectable_field(form, selected, 1);
+            int width = form_width_from_cols();
+            if (next >= 0 && field_fully_visible(form, next, width, top)) {
+                selected = next;
+            } else if (next >= 0 || top < form_max_top(form, width)) {
+                pending_selected = next;
+                scroll_direction = 1;
+                selection_active = 0;
+                if (pending_selected >= 0 &&
+                    scroll_toward_field(form, pending_selected, 1, width, &top)) {
+                    selected = pending_selected;
+                    pending_selected = -1;
+                    selection_active = 1;
+                } else if (pending_selected < 0) {
+                    scroll_document(form, 1, width, &top);
+                }
+            }
+        } else if (ch == KEY_NPAGE || ch == KEY_PPAGE) {
+            int direction = ch == KEY_NPAGE ? 1 : -1;
+            int width = form_width_from_cols();
+            page_document(form, direction, width, &top);
+            int visible = selectable_field_in_view(form, direction, width, top);
+            if (visible >= 0) {
+                selected = visible;
+                pending_selected = -1;
+                selection_active = 1;
+            } else {
+                selection_active = 0;
+                pending_selected = -1;
+                scroll_direction = direction;
+            }
+        } else if (ch == KEY_HOME || ch == KEY_END) {
+            int direction = ch == KEY_HOME ? 1 : -1;
+            int width = form_width_from_cols();
+            top = ch == KEY_HOME ? 0 : form_max_top(form, width);
+            int visible = selectable_field_in_view(form, direction, width, top);
+            if (visible >= 0) {
+                selected = visible;
+                pending_selected = -1;
+                selection_active = 1;
+            } else {
+                selection_active = 0;
+                pending_selected = ch == KEY_HOME ? first_selectable_field(form) : selected;
+                scroll_direction = direction;
             }
         } else if ((ch == '\n' || ch == KEY_ENTER) && field_is_selectable(&form->fields[selected])) {
             if (field_is_inline_scrollable(&form->fields[selected])) {
