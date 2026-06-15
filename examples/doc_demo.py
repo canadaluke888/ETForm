@@ -9,9 +9,10 @@ from tform import BrailleCanvas, CodeBlock, Doc, Section, Table, Text
 def build_doc() -> Doc:
     doc = Doc(
         title="TForm Manual",
-        margin_x=60,
+        margin_x=30,
         margin_y=1,
         syntax_highlight=True,
+        show_border=True,
     )
 
     intro = Section("Introduction")

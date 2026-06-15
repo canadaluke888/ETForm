@@ -53,6 +53,7 @@ typedef struct {
     int margin_top;
     int margin_bottom;
     int syntax_highlight;
+    int show_border;
 } TFormDocObject;
 
 extern PyTypeObject TFormDocType;

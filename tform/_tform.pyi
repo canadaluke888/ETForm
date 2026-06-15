@@ -245,6 +245,7 @@ class Doc:
         margin_top: int | None = None,
         margin_bottom: int | None = None,
         syntax_highlight: bool = True,
+        show_border: bool = True,
     ) -> None: ...
 
     def add_section(self, section: Section) -> None: ...

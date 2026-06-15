@@ -507,13 +507,14 @@ static PyObject *Doc_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->margin_top = 0;
     self->margin_bottom = 0;
     self->syntax_highlight = 1;
+    self->show_border = 1;
     return (PyObject *)self;
 }
 
 static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {
         "title", "margin_x", "margin_y", "margin_left", "margin_right",
-        "margin_top", "margin_bottom", "syntax_highlight", NULL
+        "margin_top", "margin_bottom", "syntax_highlight", "show_border", NULL
     };
     const char *title = NULL;
     PyObject *margin_x_obj = Py_None;
@@ -523,8 +524,9 @@ static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
     PyObject *margin_top_obj = Py_None;
     PyObject *margin_bottom_obj = Py_None;
     int syntax_highlight = 1;
+    int show_border = 1;
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "s|OOOOOOp", kwlist,
+            args, kwargs, "s|OOOOOOpp", kwlist,
             &title,
             &margin_x_obj,
             &margin_y_obj,
@@ -532,7 +534,8 @@ static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
             &margin_right_obj,
             &margin_top_obj,
             &margin_bottom_obj,
-            &syntax_highlight)) {
+            &syntax_highlight,
+            &show_border)) {
         return -1;
     }
     int margin_x;
@@ -558,6 +561,7 @@ static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
     self->margin_top = margin_top;
     self->margin_bottom = margin_bottom;
     self->syntax_highlight = syntax_highlight ? 1 : 0;
+    self->show_border = show_border ? 1 : 0;
     return 0;
 }
 

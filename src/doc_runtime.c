@@ -118,6 +118,45 @@ static void doc_viewport_bounds(
     *bottom = body_h - bottom_margin;
 }
 
+static void draw_doc_border(
+    WINDOW *win,
+    int x,
+    int width,
+    int top,
+    int height,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || width < 2 || height < 2) return;
+    int right = x + width - 1;
+    int last_row = top + height - 1;
+    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER);
+    wattron(win, attr);
+    if (top >= clip_top && top < clip_bottom) {
+        mvwaddstr(win, top, x, "┌");
+        for (int col = x + 1; col < right; col++) {
+            mvwaddstr(win, top, col, "─");
+        }
+        mvwaddstr(win, top, right, "┐");
+    }
+    int side_top = top + 1;
+    if (side_top < clip_top) side_top = clip_top;
+    int side_bottom = last_row;
+    if (side_bottom > clip_bottom) side_bottom = clip_bottom;
+    for (int row = side_top; row < side_bottom; row++) {
+        mvwaddstr(win, row, x, "│");
+        mvwaddstr(win, row, right, "│");
+    }
+    if (last_row >= clip_top && last_row < clip_bottom) {
+        mvwaddstr(win, last_row, x, "└");
+        for (int col = x + 1; col < right; col++) {
+            mvwaddstr(win, last_row, col, "─");
+        }
+        mvwaddstr(win, last_row, right, "┘");
+    }
+    wattroff(win, attr);
+}
+
 static void draw_code_line(
     WINDOW *win,
     int y,
@@ -343,15 +382,36 @@ static void draw_doc(
     int clip_top;
     int clip_bottom;
     doc_viewport_bounds(doc, body_h, &clip_top, &clip_bottom);
+    int border_visible = doc->show_border &&
+                         content_width >= 3;
+    if (border_visible) {
+        if (content_width >= 3) {
+            content_x++;
+            content_width -= 2;
+        }
+    }
+    int content_height = doc_total_height(doc, content_width);
+    int document_height = content_height + (border_visible ? 2 : 0);
     int viewport = clip_bottom - clip_top;
     if (viewport < 1) viewport = 1;
-
-    int total_height = doc_total_height(doc, content_width);
-    int max_top = total_height > viewport ? total_height - viewport : 0;
+    int max_top = document_height > viewport ? document_height - viewport : 0;
     if (*top < 0) *top = 0;
     if (*top > max_top) *top = max_top;
 
-    int row = clip_top - *top;
+    int document_y = clip_top - *top;
+    if (border_visible) {
+        draw_doc_border(
+            main_panel->win,
+            content_x - 1,
+            content_width + 2,
+            document_y,
+            document_height,
+            clip_top,
+            clip_bottom
+        );
+    }
+
+    int row = document_y + (border_visible ? 1 : 0);
     for (int i = 0; i < doc->section_count; i++) {
         if (i > 0) row++;
         TFormDocSectionObject *section =
@@ -424,9 +484,15 @@ int tform_run_doc(TFormDocObject *doc) {
             &viewport_top,
             &viewport_bottom
         );
+        int border_visible = doc->show_border &&
+                             content_width >= 3;
+        if (border_visible) {
+            if (content_width >= 3) content_width -= 2;
+        }
         int viewport = viewport_bottom - viewport_top;
         if (viewport < 1) viewport = 1;
-        int total_height = doc_total_height(doc, content_width);
+        int total_height = doc_total_height(doc, content_width) +
+                           (border_visible ? 2 : 0);
         int max_top = total_height > viewport ? total_height - viewport : 0;
         int ch = wgetch(main_panel->win);
         if (ch == 'q' || ch == 'Q' || ch == 27) break;

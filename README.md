@@ -156,7 +156,12 @@ Margins reduce the document viewport without introducing coordinate placement.
 ```python
 from tform import CodeBlock, Doc, Section
 
-doc = Doc(title="Project Notes", margin_x=4, syntax_highlight=True)
+doc = Doc(
+    title="Project Notes",
+    margin_x=4,
+    syntax_highlight=True,
+    show_border=True,
+)
 
 intro = Section("Introduction")
 intro.add_h1("Project Notes")
@@ -175,6 +180,11 @@ intro.add_section(example)
 doc.add_section(intro)
 doc.run()
 ```
+
+The page border uses the document margins as its outer boundaries and scrolls
+with the document. Its bottom edge is rendered at the actual end of the
+document rather than at the bottom of the viewport. Disable it with
+`show_border=False`.
 
 `Section.add()` accepts existing `Text`, `Table`, `Image`, and `BrailleCanvas`
 objects. `add_h1()`, `add_h2()`, and `add_h3()` accept `str` or `Text`.
