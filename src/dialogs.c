@@ -1003,9 +1003,9 @@ static void clock_draw_face(
         (double)second * pi / 30.0,
         radius * 0.88
     );
-    wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_SYNTAX_KEYWORD) | A_BOLD);
+    wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_CLOCK_FACE));
     braille_canvas_render(&canvas, win, origin_y, origin_x, char_height, char_width);
-    wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_SYNTAX_KEYWORD) | A_BOLD);
+    wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_CLOCK_FACE));
     braille_canvas_free(&canvas);
 }
 
