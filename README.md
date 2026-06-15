@@ -325,9 +325,10 @@ form.add_section(Text("Developer Settings", color="cyan", bold=True), table, box
 
 Rows must have the same number of cells as the table has columns. The table
 title accepts `str` or `Text`, renders above the table, and is aligned within
-the table bounds. Tables keep an outer border by default and omit the inner
-grid. Set `show_lines=True` to draw row and column grid lines for headers and
-normal rows. Separators are always one full-width row without column dividers;
+the table bounds. Tables keep an outer border and a rule below the header by
+default, while omitting body row and column grid lines. Set `show_lines=True`
+to draw row and column grid lines for headers and normal rows. Separators are
+always one full-width row without column dividers;
 they are blank by default, accept a plain string for left-aligned unstyled text,
 or accept `Text` for formatted and aligned separator text.
 

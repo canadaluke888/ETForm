@@ -912,7 +912,7 @@ static int table_display_height(TFormTable *table) {
     if (!table || table->column_count <= 0) {
         return 1 + padding * 2;
     }
-    int height = table->show_lines ? 4 : 3;
+    int height = 4;
     if (table->title.value && *table->title.value) {
         height++;
     }
@@ -1992,6 +1992,8 @@ static void draw_table(
         clip_bottom
     );
     if (table->show_lines) {
+        draw_table_rule(win, row++, draw_x, width, table, widths, "┡", "╇", "┩", "━", border_attr, clip_top, clip_bottom);
+    } else {
         draw_table_rule(win, row++, draw_x, width, table, widths, "┡", "╇", "┩", "━", border_attr, clip_top, clip_bottom);
     }
     for (int i = 0; i < table->row_count; i++) {
