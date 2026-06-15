@@ -1,6 +1,11 @@
 include VERSION
 include README.md
 include examples/demo.py
+include examples/doc_demo.py
 include assets/logo.png
 include src/braille_canvas.h
+include src/doc_object.h
+include src/doc_runtime.h
+include src/form_object.h
+include src/form_runtime.h
 include src/third_party/stb_image.h

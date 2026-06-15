@@ -2,12 +2,15 @@ from ._tform import BrailleCanvas as BrailleCanvas
 from ._tform import Calendar as Calendar
 from ._tform import Clock as Clock
 from ._tform import ClockFormat as ClockFormat
+from ._tform import CodeBlock as CodeBlock
+from ._tform import Doc as Doc
 from ._tform import FilePicker as FilePicker
 from ._tform import FilePickerMode as FilePickerMode
 from ._tform import Form as Form
 from ._tform import Image as Image
 from ._tform import LabelAlign as LabelAlign
 from ._tform import SectionItem as SectionItem
+from ._tform import Section as Section
 from ._tform import Table as Table
 from ._tform import Text as Text
 from ._tform import TextColor as TextColor

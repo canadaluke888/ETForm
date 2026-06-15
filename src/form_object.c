@@ -69,7 +69,7 @@ static void trim_in_place(char *value) {
 }
 
 static int parse_label_object(PyObject *label_obj, int allow_empty, TFormTextStyle *style);
-static int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value);
+int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value);
 
 void tform_table_init(TFormTable *table) {
     if (!table) {
@@ -306,7 +306,7 @@ int tform_table_copy(TFormTable *dest, const TFormTable *src) {
     return 0;
 }
 
-static void tform_section_element_free(TFormSectionElement *element) {
+void tform_section_element_free(TFormSectionElement *element) {
     if (!element) {
         return;
     }
@@ -389,7 +389,7 @@ static int tform_text_style_set_value(TFormTextStyle *style, const char *value) 
     return 0;
 }
 
-static int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value) {
+int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value) {
     if (!dest) {
         return -1;
     }
@@ -1670,6 +1670,14 @@ static int parse_label_object(
     return 0;
 }
 
+int tform_text_style_from_object(
+    PyObject *object,
+    int allow_empty,
+    TFormTextStyle *style
+) {
+    return parse_label_object(object, allow_empty, style);
+}
+
 static int tform_section_ensure_capacity(TFormField *field, int needed) {
     if (!field || needed < 0) {
         return -1;
@@ -1772,6 +1780,53 @@ static int tform_section_append_object(TFormField *field, PyObject *item) {
     int result = tform_section_append_text(field, &text_style);
     tform_text_style_free(&text_style);
     return result;
+}
+
+int tform_section_element_from_object(
+    TFormSectionElement *element,
+    PyObject *item
+) {
+    if (!element || !item) {
+        PyErr_SetString(PyExc_TypeError, "document item must not be None");
+        return -1;
+    }
+    memset(element, 0, sizeof(*element));
+    if (PyObject_TypeCheck(item, &TFormTableType)) {
+        TFormTableObject *table = (TFormTableObject *)item;
+        element->kind = TFORM_SECTION_ELEMENT_TABLE;
+        return tform_table_copy(&element->table, &table->table);
+    }
+    if (PyObject_TypeCheck(item, &TFormBrailleCanvasType)) {
+        TFormBrailleCanvasObject *canvas = (TFormBrailleCanvasObject *)item;
+        element->kind = TFORM_SECTION_ELEMENT_BRAILLE_CANVAS;
+        if (braille_canvas_copy(&element->canvas, &canvas->canvas) < 0) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        element->canvas_color = canvas->color;
+        element->canvas_padding = canvas->padding;
+        return 0;
+    }
+    if (PyObject_TypeCheck(item, &TFormImageType)) {
+        TFormImageObject *image = (TFormImageObject *)item;
+        element->kind = TFORM_SECTION_ELEMENT_BRAILLE_CANVAS;
+        if (braille_canvas_copy(&element->canvas, &image->canvas) < 0) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        element->canvas_color = image->color;
+        element->canvas_padding = image->padding;
+        return 0;
+    }
+    element->kind = TFORM_SECTION_ELEMENT_TEXT;
+    if (parse_label_object(item, 1, &element->text) < 0) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "document items must be str, Text, Table, BrailleCanvas, or Image"
+        );
+        return -1;
+    }
+    return 0;
 }
 
 static PyObject *Form_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {

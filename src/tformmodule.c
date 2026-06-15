@@ -1,4 +1,5 @@
 #include "form_object.h"
+#include "doc_object.h"
 
 #include <Python.h>
 
@@ -32,6 +33,15 @@ PyMODINIT_FUNC PyInit__tform(void) {
         return NULL;
     }
     if (PyType_Ready(&TFormTableType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormCodeBlockType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormDocSectionType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormDocType) < 0) {
         return NULL;
     }
 
@@ -85,6 +95,24 @@ PyMODINIT_FUNC PyInit__tform(void) {
     Py_INCREF(&TFormTableType);
     if (PyModule_AddObject(module, "Table", (PyObject *)&TFormTableType) < 0) {
         Py_DECREF(&TFormTableType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormCodeBlockType);
+    if (PyModule_AddObject(module, "CodeBlock", (PyObject *)&TFormCodeBlockType) < 0) {
+        Py_DECREF(&TFormCodeBlockType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormDocSectionType);
+    if (PyModule_AddObject(module, "Section", (PyObject *)&TFormDocSectionType) < 0) {
+        Py_DECREF(&TFormDocSectionType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormDocType);
+    if (PyModule_AddObject(module, "Doc", (PyObject *)&TFormDocType) < 0) {
+        Py_DECREF(&TFormDocType);
         Py_DECREF(module);
         return NULL;
     }

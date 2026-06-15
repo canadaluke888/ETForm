@@ -1,14 +1,13 @@
 # TForm
 
-TForm is a Python framework for building native terminal forms with an ncurses
-interface. It is designed for developer settings, configuration screens, setup
-flows, and other CLI workflows that need structured input without making users
-answer a long sequence of prompts.
+TForm is a Python framework for building native terminal forms and read-only
+documents with an ncurses interface. Forms collect structured input. Documents
+render hierarchical manuals, project notes, and other ordered terminal content.
 
-The public API is intentionally small: create a `Form`, add fields, then call
-`run()`. TForm handles terminal rendering, field navigation, inline editing,
-modal file picking, validation bounds for integers, and conversion back into
-plain Python values.
+The public API is intentionally small: create a `Form` to collect values or a
+`Doc` to render read-only content, add items in display order, then call `run()`.
+TForm handles terminal rendering, navigation, scrolling, and reusable styled
+display objects.
 
 ## Features
 
@@ -21,6 +20,8 @@ plain Python values.
 - Scrollable integer fields with optional `min` and `max` bounds.
 - File, calendar, and clock picker tools for text and list fields.
 - Static Unicode Braille canvases for compact terminal graphics.
+- Hierarchical read-only documents with headings, paragraphs, code blocks,
+  reusable display objects, margins, boxes, and scrolling.
 - Typed package metadata through `py.typed` and `.pyi` stubs.
 
 ## Requirements
@@ -132,13 +133,53 @@ Run the included demo from the repository root:
 python3 examples/demo.py
 ```
 
+Run the separate document demo with:
+
+```bash
+python3 examples/doc_demo.py
+```
+
 ## Core API
 
 Import the framework objects from `tform`:
 
 ```python
-from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
+from tform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Image, Section, Table, Text
 ```
+
+### `Doc`
+
+`Doc` is the read-only counterpart to `Form`. It renders hierarchical sections
+vertically and supports line scrolling, page scrolling, and Home/End navigation.
+Margins reduce the document viewport without introducing coordinate placement.
+
+```python
+from tform import CodeBlock, Doc, Section
+
+doc = Doc(title="Project Notes", margin_x=4, syntax_highlight=True)
+
+intro = Section("Introduction")
+intro.add_h1("Project Notes")
+intro.add_p("This document is rendered vertically in the terminal.")
+
+example = Section("Example", boxed=True)
+example.add_h2("Code")
+example.add_code_block(
+    CodeBlock(
+        code="print('hello from TForm docs')",
+        lang="python",
+    )
+)
+
+intro.add_section(example)
+doc.add_section(intro)
+doc.run()
+```
+
+`Section.add()` accepts existing `Text`, `Table`, `Image`, and `BrailleCanvas`
+objects. `add_h1()`, `add_h2()`, and `add_h3()` accept `str` or `Text`.
+`add_p()` wraps paragraph text inside the active margins. Code blocks preserve
+indentation and clip safely at the right margin. Press Q or Escape to exit.
 
 ### `Form`
 

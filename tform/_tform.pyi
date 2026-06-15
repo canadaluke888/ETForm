@@ -9,6 +9,7 @@ ClockFormat = Literal["24h", "12h"]
 CheckboxTick = Literal["x", "block", "dot"]
 Label = str | "Text"
 SectionItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
+DocItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
 
 
 class Text:
@@ -175,6 +176,80 @@ class Table:
     def add_row(self, *cells: str) -> None: ...
 
     def add_separator_row(self, label: Label = "") -> None: ...
+
+
+class CodeBlock:
+    def __init__(
+        self,
+        code: str,
+        lang: str | None = None,
+        background: bool = True,
+    ) -> None: ...
+
+    @property
+    def code(self) -> str: ...
+
+    @property
+    def lang(self) -> str | None: ...
+
+    @property
+    def background(self) -> bool: ...
+
+
+class Section:
+    def __init__(
+        self,
+        title: str,
+        boxed: bool = False,
+        padding: int = 1,
+    ) -> None: ...
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def boxed(self) -> bool: ...
+
+    @property
+    def padding(self) -> int: ...
+
+    def add(self, item: DocItem) -> None: ...
+
+    def add_section(self, section: "Section") -> None: ...
+
+    def add_h1(self, text: Label) -> None: ...
+
+    def add_h2(self, text: Label) -> None: ...
+
+    def add_h3(self, text: Label) -> None: ...
+
+    def add_p(self, text: Label) -> None: ...
+
+    def add_code_block(
+        self,
+        code_or_block: str | CodeBlock,
+        lang: str | None = None,
+    ) -> None: ...
+
+    def add_separator(self, text: Label | None = None) -> None: ...
+
+
+class Doc:
+    def __init__(
+        self,
+        title: str,
+        margin_x: int = 0,
+        margin_y: int = 0,
+        margin_left: int | None = None,
+        margin_right: int | None = None,
+        margin_top: int | None = None,
+        margin_bottom: int | None = None,
+        syntax_highlight: bool = True,
+    ) -> None: ...
+
+    def add_section(self, section: Section) -> None: ...
+
+    def run(self) -> None: ...
 
 
 class Form:

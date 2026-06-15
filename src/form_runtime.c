@@ -947,6 +947,21 @@ static int section_element_height(TFormSectionElement *element, int width) {
     return text_section_line_count(element->text.value);
 }
 
+int tform_static_text_height(
+    const TFormTextStyle *text,
+    int width,
+    int wrap_text
+) {
+    if (!text) return 0;
+    return wrap_text
+        ? text_section_wrap_line_count(text->value, width)
+        : text_section_line_count(text->value);
+}
+
+int tform_static_element_height(TFormSectionElement *element, int width) {
+    return section_element_height(element, width);
+}
+
 static int section_display_height(TFormField *field, int width) {
     if (!field) {
         return 0;
@@ -2078,6 +2093,18 @@ static void draw_section_box(WINDOW *win, int y, int x, int width, int height, i
     wattroff(win, attr);
 }
 
+void tform_draw_static_box(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    int height,
+    int clip_top,
+    int clip_bottom
+) {
+    draw_section_box(win, y, x, width, height, clip_top, clip_bottom);
+}
+
 static void draw_braille_canvas(
     WINDOW *win,
     int y,
@@ -2195,6 +2222,63 @@ static void draw_section(
             );
         }
         row += element_height;
+    }
+}
+
+void tform_draw_static_text(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    int height,
+    const TFormTextStyle *text,
+    int wrap_text,
+    int clip_top,
+    int clip_bottom
+) {
+    draw_text_section(
+        win, y, x, width, height, text, wrap_text, clip_top, clip_bottom
+    );
+}
+
+void tform_draw_static_element(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormSectionElement *element,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!element || width <= 0) return;
+    if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+        draw_table(
+            win, y, x, width, &element->table, clip_top, clip_bottom
+        );
+    } else if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+        draw_braille_canvas(
+            win,
+            y + element->canvas_padding,
+            x,
+            width,
+            &element->canvas,
+            element->canvas_color,
+            clip_top,
+            clip_bottom
+        );
+    } else {
+        int height = section_element_height(element, width);
+        draw_text_section(
+            win,
+            y,
+            x,
+            width,
+            height,
+            &element->text,
+            element->text.wrap_text,
+            clip_top,
+            clip_bottom
+        );
     }
 }
 

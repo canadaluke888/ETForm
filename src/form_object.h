@@ -150,9 +150,13 @@ extern PyTypeObject TFormTableType;
 
 void tform_text_style_init(TFormTextStyle *style);
 void tform_text_style_free(TFormTextStyle *style);
+int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value);
+int tform_text_style_from_object(PyObject *object, int allow_empty, TFormTextStyle *style);
 void tform_table_init(TFormTable *table);
 void tform_table_free(TFormTable *table);
 int tform_table_copy(TFormTable *dest, const TFormTable *src);
+void tform_section_element_free(TFormSectionElement *element);
+int tform_section_element_from_object(TFormSectionElement *element, PyObject *item);
 void tform_field_free(TFormField *field);
 int tform_list_append_value(TFormField *field, const char *value, const TFormTextStyle *style);
 int tform_list_set_value(TFormField *field, int index, const char *value, const TFormTextStyle *style);
