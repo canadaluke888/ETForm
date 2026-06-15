@@ -3,6 +3,7 @@
 #include "editor_theme.h"
 #include "form_runtime.h"
 #include "panel_manager.h"
+#include "syntax_highlighter.h"
 #include "terminal_control.h"
 #include "ui_footer.h"
 #include "ui_text.h"
@@ -157,6 +158,67 @@ static void draw_doc_border(
     wattroff(win, attr);
 }
 
+typedef struct {
+    WINDOW *win;
+    int remaining;
+    int background;
+} SyntaxDrawContext;
+
+static int syntax_token_pair(SyntaxTokenKind kind, int background) {
+    switch (kind) {
+        case SYNTAX_TOKEN_COMMENT:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_COMMENT
+                : GHOSTCODE_PAIR_SYNTAX_COMMENT;
+        case SYNTAX_TOKEN_STRING:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_STRING
+                : GHOSTCODE_PAIR_SYNTAX_STRING;
+        case SYNTAX_TOKEN_NUMBER:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_NUMBER
+                : GHOSTCODE_PAIR_SYNTAX_NUMBER;
+        case SYNTAX_TOKEN_KEYWORD:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_KEYWORD
+                : GHOSTCODE_PAIR_SYNTAX_KEYWORD;
+        case SYNTAX_TOKEN_TYPE:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_TYPE
+                : GHOSTCODE_PAIR_SYNTAX_TYPE;
+        case SYNTAX_TOKEN_PREPROCESSOR:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_PREPROCESSOR
+                : GHOSTCODE_PAIR_SYNTAX_PREPROCESSOR;
+        case SYNTAX_TOKEN_OPERATOR:
+            return background
+                ? GHOSTCODE_PAIR_DOC_SYNTAX_OPERATOR
+                : GHOSTCODE_PAIR_SYNTAX_OPERATOR;
+        case SYNTAX_TOKEN_PLAIN:
+            return background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+    }
+    return background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+}
+
+static void draw_syntax_token(
+    SyntaxTokenKind kind,
+    const char *text,
+    size_t bytes,
+    void *user_data
+) {
+    SyntaxDrawContext *draw = user_data;
+    if (!draw || draw->remaining <= 0) return;
+    int attr = ghostcode_color_pair(
+        (short)syntax_token_pair(kind, draw->background)
+    );
+    wattron(draw->win, attr);
+    int drawn = ghostcode_ui_text_addnstr_width(
+        draw->win, text, bytes, draw->remaining
+    );
+    wattroff(draw->win, attr);
+    draw->remaining -= drawn;
+}
+
 static void draw_code_line(
     WINDOW *win,
     int y,
@@ -164,20 +226,34 @@ static void draw_code_line(
     int width,
     const char *line,
     size_t bytes,
-    int background
+    int background,
+    SyntaxLanguage language,
+    int syntax_highlight
 ) {
-    if (background) {
-        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
-        mvwhline(win, y, x, ' ', width);
+    int plain_pair = background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+    if (!syntax_highlight || language == SYNTAX_LANGUAGE_UNKNOWN) {
+        wattron(win, ghostcode_color_pair((short)plain_pair));
         wmove(win, y, x);
         ghostcode_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
-    } else {
-        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
-        wmove(win, y, x);
-        ghostcode_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+        wattroff(win, ghostcode_color_pair((short)plain_pair));
+        return;
     }
+
+    char *line_copy = malloc(bytes + 1);
+    if (!line_copy) {
+        wattron(win, ghostcode_color_pair((short)plain_pair));
+        wmove(win, y, x);
+        ghostcode_ui_text_addnstr_width(win, line, bytes, width);
+        wattroff(win, ghostcode_color_pair((short)plain_pair));
+        return;
+    }
+    memcpy(line_copy, line, bytes);
+    line_copy[bytes] = '\0';
+
+    SyntaxDrawContext context = {win, width, background};
+    wmove(win, y, x);
+    syntax_highlight_line(language, line_copy, draw_syntax_token, &context);
+    free(line_copy);
 }
 
 static void draw_code_block(
@@ -186,6 +262,7 @@ static void draw_code_block(
     int x,
     int width,
     TFormDocItem *item,
+    int syntax_highlight,
     int clip_top,
     int clip_bottom
 ) {
@@ -206,6 +283,7 @@ static void draw_code_block(
     }
 
     const char *code = item->code ? item->code : "";
+    SyntaxLanguage language = syntax_language_for_name(item->lang);
     size_t offset = 0;
     for (;;) {
         const char *line = code + offset;
@@ -218,7 +296,7 @@ static void draw_code_block(
             }
             draw_code_line(
                 win, row, content_x, content_width, line, bytes,
-                item->code_background
+                item->code_background, language, syntax_highlight
             );
         }
         row++;
@@ -273,6 +351,7 @@ static void draw_doc_section(
     int width,
     TFormDocSectionObject *section,
     int level,
+    int syntax_highlight,
     int clip_top,
     int clip_bottom
 ) {
@@ -324,6 +403,7 @@ static void draw_doc_section(
             case TFORM_DOC_ITEM_CODE_BLOCK:
                 draw_code_block(
                     win, row, inner_x, inner_width, item,
+                    syntax_highlight,
                     clip_top, clip_bottom
                 );
                 break;
@@ -343,7 +423,7 @@ static void draw_doc_section(
                 draw_doc_section(
                     win, row, child_x, child_width,
                     (TFormDocSectionObject *)item->section,
-                    level + 1, clip_top, clip_bottom
+                    level + 1, syntax_highlight, clip_top, clip_bottom
                 );
                 break;
             }
@@ -423,6 +503,7 @@ static void draw_doc(
             content_width,
             section,
             0,
+            doc->syntax_highlight,
             clip_top,
             clip_bottom
         );

@@ -8,4 +8,5 @@ include src/doc_object.h
 include src/doc_runtime.h
 include src/form_object.h
 include src/form_runtime.h
+include src/syntax_highlighter.h
 include src/third_party/stb_image.h

@@ -7,6 +7,7 @@ sources = [
     "src/form_runtime.c",
     "src/doc_object.c",
     "src/doc_runtime.c",
+    "src/syntax_highlighter.c",
     "src/form_helpers.c",
     "src/dialogs.c",
     "src/braille_canvas.c",
@@ -19,7 +20,7 @@ sources = [
 
 setup(
     name="tform",
-    version="0.14.0",
+    version="0.15.0",
     description="Native ncurses forms and read-only terminal documents",
     packages=["tform"],
     package_data={"tform": ["py.typed", "*.pyi"]},
@@ -34,6 +35,7 @@ setup(
                 "src/doc_runtime.h",
                 "src/form_object.h",
                 "src/form_runtime.h",
+                "src/syntax_highlighter.h",
                 "src/third_party/stb_image.h",
             ],
             libraries=["ncursesw", "panelw", "m"],

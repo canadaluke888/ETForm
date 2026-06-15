@@ -189,7 +189,10 @@ document rather than at the bottom of the viewport. Disable it with
 `Section.add()` accepts existing `Text`, `Table`, `Image`, and `BrailleCanvas`
 objects. `add_h1()`, `add_h2()`, and `add_h3()` accept `str` or `Text`.
 `add_p()` wraps paragraph text inside the active margins. Code blocks preserve
-indentation and clip safely at the right margin. Press Q or Escape to exit.
+indentation and clip safely at the right margin. When `syntax_highlight=True`,
+recognized `CodeBlock.lang` values such as `"python"`, `"c"`, `"javascript"`,
+`"json"`, and `"shell"` receive token-based syntax colors. Set it to `False`
+to render code as plain text. Press Q or Escape to exit.
 
 ### `Form`
 
