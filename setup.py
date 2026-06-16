@@ -20,7 +20,7 @@ sources = [
 
 setup(
     name="tform",
-    version="0.15.0",
+    version="0.15.1",
     description="Native ncurses forms and read-only terminal documents",
     packages=["tform"],
     package_data={"tform": ["py.typed", "*.pyi"]},
