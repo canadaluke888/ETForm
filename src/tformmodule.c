@@ -38,7 +38,16 @@ PyMODINIT_FUNC PyInit__tform(void) {
     if (PyType_Ready(&TFormCodeBlockType) < 0) {
         return NULL;
     }
-    if (PyType_Ready(&TFormDocSectionType) < 0) {
+    if (PyType_Ready(&TFormParagraphType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormOrderedListType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormUnorderedListType) < 0) {
+        return NULL;
+    }
+    if (PyType_Ready(&TFormDocGroupType) < 0) {
         return NULL;
     }
     if (PyType_Ready(&TFormDocType) < 0) {
@@ -104,9 +113,27 @@ PyMODINIT_FUNC PyInit__tform(void) {
         Py_DECREF(module);
         return NULL;
     }
-    Py_INCREF(&TFormDocSectionType);
-    if (PyModule_AddObject(module, "Section", (PyObject *)&TFormDocSectionType) < 0) {
-        Py_DECREF(&TFormDocSectionType);
+    Py_INCREF(&TFormParagraphType);
+    if (PyModule_AddObject(module, "Paragraph", (PyObject *)&TFormParagraphType) < 0) {
+        Py_DECREF(&TFormParagraphType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormOrderedListType);
+    if (PyModule_AddObject(module, "OrderedList", (PyObject *)&TFormOrderedListType) < 0) {
+        Py_DECREF(&TFormOrderedListType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormUnorderedListType);
+    if (PyModule_AddObject(module, "UnorderedList", (PyObject *)&TFormUnorderedListType) < 0) {
+        Py_DECREF(&TFormUnorderedListType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&TFormDocGroupType);
+    if (PyModule_AddObject(module, "Group", (PyObject *)&TFormDocGroupType) < 0) {
+        Py_DECREF(&TFormDocGroupType);
         Py_DECREF(module);
         return NULL;
     }

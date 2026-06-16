@@ -3,7 +3,22 @@
 
 from __future__ import annotations
 
-from tform import BrailleCanvas, CodeBlock, Doc, Section, Table, Text
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tform import (
+    BrailleCanvas,
+    CodeBlock,
+    Doc,
+    Group,
+    OrderedList,
+    Paragraph,
+    Table,
+    Text,
+    UnorderedList,
+)
 
 
 def build_doc() -> Doc:
@@ -15,58 +30,63 @@ def build_doc() -> Doc:
         show_border=True,
     )
 
-    intro = Section("Introduction")
-    intro.add_h1(Text("TForm Manual", align="center", bold=True, color="cyan"))
-    intro.add_p(
-        "TForm documents are structured, read-only terminal documents. "
-        "Content is rendered vertically in the order it is added."
-    )
-
     capabilities = Table(
         title=Text("Shared Display Objects", align="center", color="yellow", bold=True),
         color="cyan",
     )
     capabilities.add_column("Object")
     capabilities.add_column("Purpose")
-    capabilities.add_row("Text", "Styled document text")
-    capabilities.add_row("Table", "Structured rows and columns")
-    capabilities.add_row("BrailleCanvas", "Compact terminal graphics")
-    intro.add(capabilities)
-
-    usage = Section("Usage", boxed=True, padding=1)
-    usage.add_h2("Usage")
-    usage.add_p(
-        "Sections create hierarchy while preserving predictable top-to-bottom rendering."
-    )
-    usage.add_code_block(
-        CodeBlock(
-            code=(
-                "from tform import Doc, Section\n\n"
-                'doc = Doc(title="Manual", margin_x=4)\n'
-                'section = Section("Example")\n'
-                'section.add_p("Hello from TForm docs.")\n'
-                "doc.add_section(section)\n"
-                "doc.run()"
-            ),
-            lang="python",
-        )
-    )
+    capabilities.add_row("Text", "Styled inline text")
+    capabilities.add_row("Paragraph", "Mixed inline text block")
+    capabilities.add_row("OrderedList", "Numbered static list")
+    capabilities.add_row("UnorderedList", "Bulleted static list")
 
     canvas = BrailleCanvas(20, 6, color="green", padding=1)
     canvas.draw_circle(canvas.dot_width // 2, canvas.dot_height // 2, 9)
-    usage.add(canvas)
-    intro.add_section(usage)
 
-    controls = Section("Controls", boxed=True)
-    controls.add_h2("Viewer Controls")
-    controls.add_p("Use Up and Down to scroll one line at a time.")
-    controls.add_p("Use Page Up and Page Down to scroll by a viewport.")
-    controls.add_p("Use Home and End to jump to the document boundaries.")
-    controls.add_separator("Exit")
-    controls.add_p("Press Q or Escape to close the document.")
+    doc.add(
+        Text("TForm Manual", align="center", bold=True, color="cyan"),
+        Paragraph(
+            "TForm documents support ",
+            Text("granular inline styling", color="yellow", bold=True),
+            " without a markup parser."
+        ),
+        UnorderedList(
+            "Plain strings become paragraph-style list items",
+            Paragraph("Use ", Text("Text", color="cyan"), " for inline spans."),
+            OrderedList(
+                "Nested ordered list item",
+                Paragraph(
+                    "Nested items can contain ",
+                    Text("styled text", underline=True),
+                ),
+            ),
+        ),
+        capabilities,
+        CodeBlock(
+            code=(
+                "from tform import Doc, Paragraph, Text, UnorderedList\n\n"
+                'doc = Doc(title="Manual", margin_x=4)\n'
+                "doc.add(\n"
+                '    Paragraph("Hello ", Text("from TForm docs", bold=True)),\n'
+                '    UnorderedList("Static list item"),\n'
+                ")\n"
+                "doc.run()"
+            ),
+            lang="python",
+        ),
+        canvas,
+    )
 
-    doc.add_section(intro)
-    doc.add_section(controls)
+    controls = Group("Viewer Controls", boxed=True)
+    controls.add(
+        Paragraph("Use Up and Down to scroll one line at a time."),
+        Paragraph("Use Page Up and Page Down to scroll by a viewport."),
+        Paragraph("Use Home and End to jump to the document boundaries."),
+        Text("Exit", bold=True, color="yellow"),
+        Paragraph("Press Q or Escape to close the document."),
+    )
+    doc.add(controls)
     return doc
 
 

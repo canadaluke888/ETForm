@@ -5,36 +5,6 @@
 
 #include <Python.h>
 
-typedef enum {
-    TFORM_DOC_ITEM_STATIC,
-    TFORM_DOC_ITEM_PARAGRAPH,
-    TFORM_DOC_ITEM_HEADING,
-    TFORM_DOC_ITEM_CODE_BLOCK,
-    TFORM_DOC_ITEM_SEPARATOR,
-    TFORM_DOC_ITEM_SECTION
-} TFormDocItemType;
-
-typedef struct {
-    TFormDocItemType type;
-    TFormSectionElement element;
-    TFormTextStyle text;
-    int heading_level;
-    char *code;
-    char *lang;
-    int code_background;
-    PyObject *section;
-} TFormDocItem;
-
-typedef struct {
-    PyObject_HEAD
-    char *title;
-    TFormDocItem *items;
-    int item_count;
-    int item_capacity;
-    int boxed;
-    int padding;
-} TFormDocSectionObject;
-
 typedef struct {
     PyObject_HEAD
     char *code;
@@ -42,12 +12,74 @@ typedef struct {
     int background;
 } TFormCodeBlockObject;
 
+typedef enum {
+    TFORM_PARAGRAPH_RUN_STRING,
+    TFORM_PARAGRAPH_RUN_TEXT
+} TFormParagraphRunKind;
+
+typedef struct {
+    TFormParagraphRunKind kind;
+    PyObject *object;
+} TFormParagraphRun;
+
+typedef struct {
+    PyObject_HEAD
+    TFormParagraphRun *runs;
+    Py_ssize_t run_count;
+    Py_ssize_t run_capacity;
+} TFormParagraphObject;
+
+typedef enum {
+    TFORM_DOC_LIST_ITEM_PARAGRAPH,
+    TFORM_DOC_LIST_ITEM_ORDERED_LIST,
+    TFORM_DOC_LIST_ITEM_UNORDERED_LIST
+} TFormDocListItemKind;
+
+typedef struct {
+    TFormDocListItemKind kind;
+    PyObject *object;
+} TFormDocListItem;
+
+typedef struct {
+    PyObject_HEAD
+    TFormDocListItem *items;
+    Py_ssize_t item_count;
+    Py_ssize_t item_capacity;
+    int ordered;
+} TFormDocListObject;
+
+typedef enum {
+    TFORM_DOC_NODE_PARAGRAPH,
+    TFORM_DOC_NODE_GROUP,
+    TFORM_DOC_NODE_TABLE,
+    TFORM_DOC_NODE_CODE_BLOCK,
+    TFORM_DOC_NODE_BRAILLE_CANVAS,
+    TFORM_DOC_NODE_IMAGE,
+    TFORM_DOC_NODE_ORDERED_LIST,
+    TFORM_DOC_NODE_UNORDERED_LIST
+} TFormDocNodeKind;
+
+typedef struct {
+    TFormDocNodeKind kind;
+    PyObject *object;
+} TFormDocNode;
+
+typedef struct {
+    PyObject_HEAD
+    char *label;
+    TFormDocNode *children;
+    Py_ssize_t child_count;
+    Py_ssize_t child_capacity;
+    int boxed;
+    int padding;
+} TFormDocGroupObject;
+
 typedef struct {
     PyObject_HEAD
     char *title;
-    PyObject **sections;
-    int section_count;
-    int section_capacity;
+    TFormDocNode *children;
+    Py_ssize_t child_count;
+    Py_ssize_t child_capacity;
     int margin_left;
     int margin_right;
     int margin_top;
@@ -57,9 +89,10 @@ typedef struct {
 } TFormDocObject;
 
 extern PyTypeObject TFormDocType;
-extern PyTypeObject TFormDocSectionType;
+extern PyTypeObject TFormDocGroupType;
 extern PyTypeObject TFormCodeBlockType;
-
-void tform_doc_item_free(TFormDocItem *item);
+extern PyTypeObject TFormParagraphType;
+extern PyTypeObject TFormOrderedListType;
+extern PyTypeObject TFormUnorderedListType;
 
 #endif

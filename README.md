@@ -144,17 +144,18 @@ python3 examples/doc_demo.py
 Import the framework objects from `tform`:
 
 ```python
-from tform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Image, Section, Table, Text
+from tform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Group, Image, OrderedList, Paragraph, Table, Text, UnorderedList
 ```
 
 ### `Doc`
 
-`Doc` is the read-only counterpart to `Form`. It renders hierarchical sections
-vertically and supports line scrolling, page scrolling, and Home/End navigation.
-Margins reduce the document viewport without introducing coordinate placement.
+`Doc` is the read-only counterpart to `Form`. It renders static document items
+vertically in the order passed to `Doc.add()` and supports line scrolling, page
+scrolling, and Home/End navigation. Margins reduce the document viewport without
+introducing coordinate placement.
 
 ```python
-from tform import CodeBlock, Doc, Section
+from tform import CodeBlock, Doc, Group, OrderedList, Paragraph, Text, UnorderedList
 
 doc = Doc(
     title="Project Notes",
@@ -163,21 +164,30 @@ doc = Doc(
     show_border=True,
 )
 
-intro = Section("Introduction")
-intro.add_h1("Project Notes")
-intro.add_p("This document is rendered vertically in the terminal.")
-
-example = Section("Example", boxed=True)
-example.add_h2("Code")
-example.add_code_block(
+doc.add(
+    Text("Project Notes", align="center", bold=True, color="cyan"),
+    Paragraph(
+        "TForm documents support ",
+        Text("inline styled text", color="yellow", bold=True),
+        " without a markup parser.",
+    ),
+    UnorderedList(
+        "Plain strings become paragraph-style list items",
+        Paragraph("Use ", Text("Text", color="cyan"), " for inline spans."),
+        OrderedList("Nested ordered item"),
+    ),
     CodeBlock(
         code="print('hello from TForm docs')",
         lang="python",
-    )
+    ),
 )
 
-intro.add_section(example)
-doc.add_section(intro)
+controls = Group("Controls", boxed=True)
+controls.add(
+    Paragraph("Use Up and Down to scroll one line at a time."),
+    Paragraph("Press Q or Escape to close the document."),
+)
+doc.add(controls)
 doc.run()
 ```
 
@@ -186,13 +196,21 @@ with the document. Its bottom edge is rendered at the actual end of the
 document rather than at the bottom of the viewport. Disable it with
 `show_border=False`.
 
-`Section.add()` accepts existing `Text`, `Table`, `Image`, and `BrailleCanvas`
-objects. `add_h1()`, `add_h2()`, and `add_h3()` accept `str` or `Text`.
-`add_p()` wraps paragraph text inside the active margins. Code blocks preserve
-indentation and clip safely at the right margin. When `syntax_highlight=True`,
-recognized `CodeBlock.lang` values such as `"python"`, `"c"`, `"javascript"`,
-`"json"`, and `"shell"` receive token-based syntax colors. Set it to `False`
-to render code as plain text. Press Q or Escape to exit.
+`Doc.add()` accepts `str`, `Text`, `Paragraph`, `Group`, `Table`,
+`CodeBlock`, `BrailleCanvas`, `Image`, `OrderedList`, and `UnorderedList`, and
+returns the document for chaining. Plain strings and standalone `Text` objects
+are converted to paragraph-style blocks internally. `Paragraph` is the
+block-level container for mixed inline runs; `Text` remains the styled inline
+unit. `OrderedList` and `UnorderedList` are static document renderables and are
+separate from `Form.add_list_input()`.
+
+`Group(label, boxed=False, padding=1)` groups normal document items together.
+It accepts the same renderables through `Group.add()` and can be added with
+`Doc.add(group)`. Code blocks preserve indentation and clip safely at the right
+margin. When `syntax_highlight=True`, recognized `CodeBlock.lang` values such
+as `"python"`, `"c"`, `"javascript"`, `"json"`, and `"shell"` receive
+token-based syntax colors. Set it to `False` to render code as plain text.
+Press Q or Escape to exit.
 
 ### `Form`
 
@@ -320,7 +338,7 @@ use 256-color cells when available and retain the configured `color` as the
 
 ### `Table`
 
-`Table` renders static tabular content inside `add_section()`.
+`Table` renders static tabular content inside `Doc.add()` or `Form.add_section()`.
 
 ```python
 table = Table(

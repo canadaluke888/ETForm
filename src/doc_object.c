@@ -28,28 +28,125 @@ static int parse_nonnegative(PyObject *value, int fallback, const char *name, in
     return 0;
 }
 
-void tform_doc_item_free(TFormDocItem *item) {
-    if (!item) return;
-    if (item->type == TFORM_DOC_ITEM_STATIC) {
-        tform_section_element_free(&item->element);
-    } else if (item->type == TFORM_DOC_ITEM_PARAGRAPH ||
-               item->type == TFORM_DOC_ITEM_HEADING ||
-               item->type == TFORM_DOC_ITEM_SEPARATOR) {
-        tform_text_style_free(&item->text);
-    } else if (item->type == TFORM_DOC_ITEM_CODE_BLOCK) {
-        free(item->code);
-        free(item->lang);
-    } else if (item->type == TFORM_DOC_ITEM_SECTION) {
-        Py_XDECREF(item->section);
+static int paragraph_ensure_capacity(TFormParagraphObject *self, Py_ssize_t needed) {
+    if (self->run_capacity >= needed) return 0;
+    Py_ssize_t capacity = self->run_capacity ? self->run_capacity * 2 : 4;
+    while (capacity < needed) capacity *= 2;
+    TFormParagraphRun *runs = realloc(self->runs, (size_t)capacity * sizeof(*runs));
+    if (!runs) {
+        PyErr_NoMemory();
+        return -1;
     }
-    memset(item, 0, sizeof(*item));
+    memset(
+        runs + self->run_capacity,
+        0,
+        (size_t)(capacity - self->run_capacity) * sizeof(*runs)
+    );
+    self->runs = runs;
+    self->run_capacity = capacity;
+    return 0;
 }
 
-static int section_ensure_capacity(TFormDocSectionObject *self, int needed) {
+static int paragraph_append_run(TFormParagraphObject *self, PyObject *object) {
+    if (!PyUnicode_Check(object) && !PyObject_TypeCheck(object, &TFormTextType)) {
+        PyErr_SetString(PyExc_TypeError, "Paragraph parts must be str or Text");
+        return -1;
+    }
+    if (paragraph_ensure_capacity(self, self->run_count + 1) < 0) return -1;
+    TFormParagraphRun *run = &self->runs[self->run_count++];
+    run->kind = PyObject_TypeCheck(object, &TFormTextType)
+        ? TFORM_PARAGRAPH_RUN_TEXT
+        : TFORM_PARAGRAPH_RUN_STRING;
+    Py_INCREF(object);
+    run->object = object;
+    return 0;
+}
+
+static PyObject *Paragraph_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    TFormParagraphObject *self = (TFormParagraphObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+    self->runs = NULL;
+    self->run_count = 0;
+    self->run_capacity = 0;
+    return (PyObject *)self;
+}
+
+static int Paragraph_init(TFormParagraphObject *self, PyObject *args, PyObject *kwargs) {
+    if (kwargs && PyDict_Size(kwargs) > 0) {
+        PyErr_SetString(PyExc_TypeError, "Paragraph does not accept keyword arguments");
+        return -1;
+    }
+    for (Py_ssize_t i = 0; i < self->run_count; i++) {
+        Py_CLEAR(self->runs[i].object);
+    }
+    self->run_count = 0;
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    for (Py_ssize_t i = 0; i < count; i++) {
+        if (paragraph_append_run(self, PyTuple_GET_ITEM(args, i)) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int Paragraph_traverse(TFormParagraphObject *self, visitproc visit, void *arg) {
+    for (Py_ssize_t i = 0; i < self->run_count; i++) {
+        Py_VISIT(self->runs[i].object);
+    }
+    return 0;
+}
+
+static int Paragraph_clear(TFormParagraphObject *self) {
+    for (Py_ssize_t i = 0; i < self->run_count; i++) {
+        Py_CLEAR(self->runs[i].object);
+    }
+    self->run_count = 0;
+    return 0;
+}
+
+static void Paragraph_dealloc(TFormParagraphObject *self) {
+    PyObject_GC_UnTrack(self);
+    Paragraph_clear(self);
+    free(self->runs);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *Paragraph_repr(TFormParagraphObject *self) {
+    return PyUnicode_FromFormat("Paragraph(parts=%zd)", self->run_count);
+}
+
+PyTypeObject TFormParagraphType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.Paragraph",
+    .tp_basicsize = sizeof(TFormParagraphObject),
+    .tp_dealloc = (destructor)Paragraph_dealloc,
+    .tp_repr = (reprfunc)Paragraph_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_doc = "Block-level Doc paragraph containing inline str and Text runs.",
+    .tp_traverse = (traverseproc)Paragraph_traverse,
+    .tp_clear = (inquiry)Paragraph_clear,
+    .tp_init = (initproc)Paragraph_init,
+    .tp_new = Paragraph_new,
+};
+
+static PyObject *paragraph_from_object(PyObject *object) {
+    if (PyObject_TypeCheck(object, &TFormParagraphType)) {
+        return Py_NewRef(object);
+    }
+    if (PyUnicode_Check(object) || PyObject_TypeCheck(object, &TFormTextType)) {
+        return PyObject_CallFunctionObjArgs((PyObject *)&TFormParagraphType, object, NULL);
+    }
+    PyErr_SetString(PyExc_TypeError, "value must be str, Text, or Paragraph");
+    return NULL;
+}
+
+static int list_ensure_capacity(TFormDocListObject *self, Py_ssize_t needed) {
     if (self->item_capacity >= needed) return 0;
-    int capacity = self->item_capacity ? self->item_capacity * 2 : 8;
+    Py_ssize_t capacity = self->item_capacity ? self->item_capacity * 2 : 4;
     while (capacity < needed) capacity *= 2;
-    TFormDocItem *items = realloc(self->items, (size_t)capacity * sizeof(*items));
+    TFormDocListItem *items = realloc(self->items, (size_t)capacity * sizeof(*items));
     if (!items) {
         PyErr_NoMemory();
         return -1;
@@ -64,27 +161,198 @@ static int section_ensure_capacity(TFormDocSectionObject *self, int needed) {
     return 0;
 }
 
-static TFormDocItem *section_append_item(TFormDocSectionObject *self, TFormDocItemType type) {
-    if (section_ensure_capacity(self, self->item_count + 1) < 0) return NULL;
-    TFormDocItem *item = &self->items[self->item_count];
-    memset(item, 0, sizeof(*item));
-    item->type = type;
-    self->item_count++;
-    return item;
+static int list_append_item(TFormDocListObject *self, PyObject *object) {
+    TFormDocListItemKind kind;
+    PyObject *stored = NULL;
+    if (PyObject_TypeCheck(object, &TFormOrderedListType)) {
+        kind = TFORM_DOC_LIST_ITEM_ORDERED_LIST;
+        stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormUnorderedListType)) {
+        kind = TFORM_DOC_LIST_ITEM_UNORDERED_LIST;
+        stored = Py_NewRef(object);
+    } else {
+        kind = TFORM_DOC_LIST_ITEM_PARAGRAPH;
+        stored = paragraph_from_object(object);
+    }
+    if (!stored) return -1;
+    if (list_ensure_capacity(self, self->item_count + 1) < 0) {
+        Py_DECREF(stored);
+        return -1;
+    }
+    TFormDocListItem *item = &self->items[self->item_count++];
+    item->kind = kind;
+    item->object = stored;
+    return 0;
 }
 
-static int section_contains(
-    TFormDocSectionObject *root,
-    TFormDocSectionObject *target
-) {
-    if (root == target) return 1;
-    for (int i = 0; i < root->item_count; i++) {
-        TFormDocItem *item = &root->items[i];
-        if (item->type == TFORM_DOC_ITEM_SECTION &&
-            section_contains((TFormDocSectionObject *)item->section, target)) {
-            return 1;
+static PyObject *DocList_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    TFormDocListObject *self = (TFormDocListObject *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+    self->items = NULL;
+    self->item_count = 0;
+    self->item_capacity = 0;
+    self->ordered = type == &TFormOrderedListType;
+    return (PyObject *)self;
+}
+
+static int DocList_init(TFormDocListObject *self, PyObject *args, PyObject *kwargs) {
+    if (kwargs && PyDict_Size(kwargs) > 0) {
+        PyErr_SetString(PyExc_TypeError, "list renderables do not accept keyword arguments");
+        return -1;
+    }
+    for (Py_ssize_t i = 0; i < self->item_count; i++) {
+        Py_CLEAR(self->items[i].object);
+    }
+    self->item_count = 0;
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    for (Py_ssize_t i = 0; i < count; i++) {
+        if (list_append_item(self, PyTuple_GET_ITEM(args, i)) < 0) {
+            return -1;
         }
     }
+    return 0;
+}
+
+static int DocList_traverse(TFormDocListObject *self, visitproc visit, void *arg) {
+    for (Py_ssize_t i = 0; i < self->item_count; i++) {
+        Py_VISIT(self->items[i].object);
+    }
+    return 0;
+}
+
+static int DocList_clear(TFormDocListObject *self) {
+    for (Py_ssize_t i = 0; i < self->item_count; i++) {
+        Py_CLEAR(self->items[i].object);
+    }
+    self->item_count = 0;
+    return 0;
+}
+
+static void DocList_dealloc(TFormDocListObject *self) {
+    PyObject_GC_UnTrack(self);
+    DocList_clear(self);
+    free(self->items);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *DocList_repr(TFormDocListObject *self) {
+    return PyUnicode_FromFormat(
+        "%s(items=%zd)",
+        self->ordered ? "OrderedList" : "UnorderedList",
+        self->item_count
+    );
+}
+
+PyTypeObject TFormOrderedListType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.OrderedList",
+    .tp_basicsize = sizeof(TFormDocListObject),
+    .tp_dealloc = (destructor)DocList_dealloc,
+    .tp_repr = (reprfunc)DocList_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_doc = "Ordered static Doc list renderable.",
+    .tp_traverse = (traverseproc)DocList_traverse,
+    .tp_clear = (inquiry)DocList_clear,
+    .tp_init = (initproc)DocList_init,
+    .tp_new = DocList_new,
+};
+
+PyTypeObject TFormUnorderedListType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "tform.UnorderedList",
+    .tp_basicsize = sizeof(TFormDocListObject),
+    .tp_dealloc = (destructor)DocList_dealloc,
+    .tp_repr = (reprfunc)DocList_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_doc = "Unordered static Doc list renderable.",
+    .tp_traverse = (traverseproc)DocList_traverse,
+    .tp_clear = (inquiry)DocList_clear,
+    .tp_init = (initproc)DocList_init,
+    .tp_new = DocList_new,
+};
+
+static int doc_node_array_ensure_capacity(
+    TFormDocNode **children,
+    Py_ssize_t *capacity,
+    Py_ssize_t needed
+) {
+    if (*capacity >= needed) return 0;
+    Py_ssize_t next_capacity = *capacity ? *capacity * 2 : 4;
+    while (next_capacity < needed) next_capacity *= 2;
+    TFormDocNode *next = realloc(*children, (size_t)next_capacity * sizeof(*next));
+    if (!next) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    memset(
+        next + *capacity,
+        0,
+        (size_t)(next_capacity - *capacity) * sizeof(*next)
+    );
+    *children = next;
+    *capacity = next_capacity;
+    return 0;
+}
+
+static int doc_normalize_renderable(
+    PyObject *object,
+    TFormDocNodeKind *kind,
+    PyObject **stored
+) {
+    if (PyObject_TypeCheck(object, &TFormDocGroupType)) {
+        *kind = TFORM_DOC_NODE_GROUP;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormCodeBlockType)) {
+        *kind = TFORM_DOC_NODE_CODE_BLOCK;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormTableType)) {
+        *kind = TFORM_DOC_NODE_TABLE;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormBrailleCanvasType)) {
+        *kind = TFORM_DOC_NODE_BRAILLE_CANVAS;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormImageType)) {
+        *kind = TFORM_DOC_NODE_IMAGE;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormOrderedListType)) {
+        *kind = TFORM_DOC_NODE_ORDERED_LIST;
+        *stored = Py_NewRef(object);
+    } else if (PyObject_TypeCheck(object, &TFormUnorderedListType)) {
+        *kind = TFORM_DOC_NODE_UNORDERED_LIST;
+        *stored = Py_NewRef(object);
+    } else {
+        *kind = TFORM_DOC_NODE_PARAGRAPH;
+        *stored = paragraph_from_object(object);
+    }
+    if (!*stored) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "document items must be str, Text, Paragraph, Group, Table, "
+            "CodeBlock, BrailleCanvas, Image, OrderedList, or UnorderedList"
+        );
+        return -1;
+    }
+    return 0;
+}
+
+static int doc_node_array_append(
+    TFormDocNode **children,
+    Py_ssize_t *count,
+    Py_ssize_t *capacity,
+    PyObject *object
+) {
+    TFormDocNodeKind kind;
+    PyObject *stored = NULL;
+    if (doc_normalize_renderable(object, &kind, &stored) < 0) return -1;
+    if (doc_node_array_ensure_capacity(children, capacity, *count + 1) < 0) {
+        Py_DECREF(stored);
+        return -1;
+    }
+    TFormDocNode *node = &(*children)[(*count)++];
+    node->kind = kind;
+    node->object = stored;
     return 0;
 }
 
@@ -187,310 +455,137 @@ PyTypeObject TFormCodeBlockType = {
     .tp_new = CodeBlock_new,
 };
 
-static PyObject *Section_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+static PyObject *Group_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormDocSectionObject *self =
-        (TFormDocSectionObject *)type->tp_alloc(type, 0);
+    TFormDocGroupObject *self =
+        (TFormDocGroupObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
-    self->title = NULL;
-    self->items = NULL;
-    self->item_count = 0;
-    self->item_capacity = 0;
+    self->label = NULL;
+    self->children = NULL;
+    self->child_count = 0;
+    self->child_capacity = 0;
     self->boxed = 0;
     self->padding = TFORM_DEFAULT_PADDING;
     return (PyObject *)self;
 }
 
-static int Section_init(TFormDocSectionObject *self, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {"title", "boxed", "padding", NULL};
-    const char *title = NULL;
+static int Group_init(TFormDocGroupObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"label", "boxed", "padding", NULL};
+    const char *label = NULL;
     int boxed = 0;
     PyObject *padding_obj = Py_None;
     int padding;
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "s|pO", kwlist, &title, &boxed, &padding_obj)) {
+            args, kwargs, "s|pO", kwlist, &label, &boxed, &padding_obj)) {
         return -1;
     }
-    if (!*title) {
-        PyErr_SetString(PyExc_ValueError, "section title must not be empty");
+    if (!*label) {
+        PyErr_SetString(PyExc_ValueError, "group label must not be empty");
         return -1;
     }
     if (parse_nonnegative(
             padding_obj, TFORM_DEFAULT_PADDING, "padding", &padding) < 0) {
         return -1;
     }
-    char *copy = doc_strdup(title);
+    char *copy = doc_strdup(label);
     if (!copy) return -1;
-    free(self->title);
-    self->title = copy;
+    free(self->label);
+    self->label = copy;
     self->boxed = boxed ? 1 : 0;
     self->padding = padding;
     return 0;
 }
 
-static int Section_traverse(TFormDocSectionObject *self, visitproc visit, void *arg) {
-    for (int i = 0; i < self->item_count; i++) {
-        if (self->items[i].type == TFORM_DOC_ITEM_SECTION) {
-            Py_VISIT(self->items[i].section);
-        }
+static int Group_traverse(TFormDocGroupObject *self, visitproc visit, void *arg) {
+    for (Py_ssize_t i = 0; i < self->child_count; i++) {
+        Py_VISIT(self->children[i].object);
     }
     return 0;
 }
 
-static int Section_clear(TFormDocSectionObject *self) {
-    for (int i = 0; i < self->item_count; i++) {
-        tform_doc_item_free(&self->items[i]);
+static int Group_clear(TFormDocGroupObject *self) {
+    for (Py_ssize_t i = 0; i < self->child_count; i++) {
+        Py_CLEAR(self->children[i].object);
     }
-    self->item_count = 0;
+    self->child_count = 0;
     return 0;
 }
 
-static void Section_dealloc(TFormDocSectionObject *self) {
+static void Group_dealloc(TFormDocGroupObject *self) {
     PyObject_GC_UnTrack(self);
-    Section_clear(self);
-    free(self->items);
-    free(self->title);
+    Group_clear(self);
+    free(self->children);
+    free(self->label);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *Section_repr(TFormDocSectionObject *self) {
+static PyObject *Group_repr(TFormDocGroupObject *self) {
     return PyUnicode_FromFormat(
-        "Section('%s', boxed=%s, padding=%d, items=%d)",
-        self->title ? self->title : "",
+        "Group('%s', boxed=%s, padding=%d, items=%zd)",
+        self->label ? self->label : "",
         self->boxed ? "True" : "False",
         self->padding,
-        self->item_count
+        self->child_count
     );
 }
 
-static PyObject *Section_add(TFormDocSectionObject *self, PyObject *item_obj) {
-    if (PyObject_TypeCheck(item_obj, &TFormDocSectionType)) {
-        PyErr_SetString(PyExc_TypeError, "use add_section() for nested sections");
-        return NULL;
-    }
-    if (PyObject_TypeCheck(item_obj, &TFormCodeBlockType)) {
-        PyErr_SetString(PyExc_TypeError, "use add_code_block() for code blocks");
-        return NULL;
-    }
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_STATIC);
-    if (!item) return NULL;
-    if (tform_section_element_from_object(&item->element, item_obj) < 0) {
-        self->item_count--;
-        memset(item, 0, sizeof(*item));
-        return NULL;
-    }
-    Py_RETURN_NONE;
-}
-
-static PyObject *Section_add_section(TFormDocSectionObject *self, PyObject *section_obj) {
-    if (!PyObject_TypeCheck(section_obj, &TFormDocSectionType)) {
-        PyErr_SetString(PyExc_TypeError, "section must be a Section");
-        return NULL;
-    }
-    TFormDocSectionObject *child = (TFormDocSectionObject *)section_obj;
-    if (section_contains(child, self)) {
-        PyErr_SetString(PyExc_ValueError, "section hierarchy must not contain cycles");
-        return NULL;
-    }
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_SECTION);
-    if (!item) return NULL;
-    Py_INCREF(section_obj);
-    item->section = section_obj;
-    Py_RETURN_NONE;
-}
-
-static PyObject *Section_add_heading(
-    TFormDocSectionObject *self,
-    PyObject *value,
-    int level
-) {
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_HEADING);
-    if (!item) return NULL;
-    if (tform_text_style_from_object(value, 0, &item->text) < 0) {
-        self->item_count--;
-        memset(item, 0, sizeof(*item));
-        return NULL;
-    }
-    item->heading_level = level;
-    item->text.bold = 1;
-    item->text.wrap_text = 1;
-    if (item->text.color == TFORM_TEXT_COLOR_DEFAULT) {
-        item->text.color = level == 1
-            ? TFORM_TEXT_COLOR_CYAN
-            : level == 2 ? TFORM_TEXT_COLOR_YELLOW : TFORM_TEXT_COLOR_GREEN;
-    }
-    Py_RETURN_NONE;
-}
-
-static PyObject *Section_add_h1(TFormDocSectionObject *self, PyObject *value) {
-    return Section_add_heading(self, value, 1);
-}
-
-static PyObject *Section_add_h2(TFormDocSectionObject *self, PyObject *value) {
-    return Section_add_heading(self, value, 2);
-}
-
-static PyObject *Section_add_h3(TFormDocSectionObject *self, PyObject *value) {
-    return Section_add_heading(self, value, 3);
-}
-
-static PyObject *Section_add_p(TFormDocSectionObject *self, PyObject *value) {
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_PARAGRAPH);
-    if (!item) return NULL;
-    if (tform_text_style_from_object(value, 1, &item->text) < 0) {
-        self->item_count--;
-        memset(item, 0, sizeof(*item));
-        return NULL;
-    }
-    item->text.wrap_text = 1;
-    if (item->text.color == TFORM_TEXT_COLOR_DEFAULT) {
-        item->text.color = TFORM_TEXT_COLOR_WHITE;
-    }
-    Py_RETURN_NONE;
-}
-
-static int copy_code_block(TFormDocItem *item, TFormCodeBlockObject *block) {
-    item->code = doc_strdup(block->code);
-    item->lang = block->lang ? doc_strdup(block->lang) : NULL;
-    item->code_background = block->background;
-    if (!item->code || (block->lang && !item->lang)) {
-        free(item->code);
-        free(item->lang);
-        item->code = NULL;
-        item->lang = NULL;
-        return -1;
-    }
-    return 0;
-}
-
-static PyObject *Section_add_code_block(
-    TFormDocSectionObject *self,
-    PyObject *args,
-    PyObject *kwargs
-) {
-    static char *kwlist[] = {"code_or_block", "lang", NULL};
-    PyObject *value = NULL;
-    PyObject *lang_obj = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", kwlist, &value, &lang_obj)) {
-        return NULL;
-    }
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_CODE_BLOCK);
-    if (!item) return NULL;
-    if (PyObject_TypeCheck(value, &TFormCodeBlockType)) {
-        if (lang_obj != Py_None) {
-            self->item_count--;
-            PyErr_SetString(PyExc_TypeError, "lang cannot be provided with a CodeBlock");
-            return NULL;
-        }
-        if (copy_code_block(item, (TFormCodeBlockObject *)value) < 0) {
-            self->item_count--;
-            memset(item, 0, sizeof(*item));
-            return NULL;
-        }
-    } else {
-        const char *code = PyUnicode_AsUTF8(value);
-        const char *lang = NULL;
-        if (!code) {
-            self->item_count--;
-            PyErr_SetString(PyExc_TypeError, "code_or_block must be str or CodeBlock");
-            return NULL;
-        }
-        if (lang_obj != Py_None) {
-            lang = PyUnicode_AsUTF8(lang_obj);
-            if (!lang) {
-                self->item_count--;
-                PyErr_SetString(PyExc_TypeError, "lang must be str or None");
-                return NULL;
-            }
-        }
-        item->code = doc_strdup(code);
-        item->lang = lang ? doc_strdup(lang) : NULL;
-        item->code_background = 1;
-        if (!item->code || (lang && !item->lang)) {
-            self->item_count--;
-            tform_doc_item_free(item);
+static PyObject *Group_add(TFormDocGroupObject *self, PyObject *args) {
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    for (Py_ssize_t i = 0; i < count; i++) {
+        if (doc_node_array_append(
+                &self->children,
+                &self->child_count,
+                &self->child_capacity,
+                PyTuple_GET_ITEM(args, i)) < 0) {
             return NULL;
         }
     }
-    Py_RETURN_NONE;
+    Py_INCREF(self);
+    return (PyObject *)self;
 }
 
-static PyObject *Section_add_separator(
-    TFormDocSectionObject *self,
-    PyObject *args,
-    PyObject *kwargs
-) {
-    static char *kwlist[] = {"text", NULL};
-    PyObject *text = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", kwlist, &text)) {
-        return NULL;
-    }
-    TFormDocItem *item = section_append_item(self, TFORM_DOC_ITEM_SEPARATOR);
-    if (!item) return NULL;
-    PyObject *value = text == Py_None ? PyUnicode_FromString("") : Py_NewRef(text);
-    if (!value) {
-        self->item_count--;
-        return NULL;
-    }
-    int result = tform_text_style_from_object(value, 1, &item->text);
-    Py_DECREF(value);
-    if (result < 0) {
-        self->item_count--;
-        memset(item, 0, sizeof(*item));
-        return NULL;
-    }
-    Py_RETURN_NONE;
-}
-
-static PyObject *Section_get_title(TFormDocSectionObject *self, void *closure) {
+static PyObject *Group_get_label(TFormDocGroupObject *self, void *closure) {
     (void)closure;
-    return PyUnicode_FromString(self->title ? self->title : "");
+    return PyUnicode_FromString(self->label ? self->label : "");
 }
 
-static PyObject *Section_get_boxed(TFormDocSectionObject *self, void *closure) {
+static PyObject *Group_get_boxed(TFormDocGroupObject *self, void *closure) {
     (void)closure;
     return PyBool_FromLong(self->boxed);
 }
 
-static PyObject *Section_get_padding(TFormDocSectionObject *self, void *closure) {
+static PyObject *Group_get_padding(TFormDocGroupObject *self, void *closure) {
     (void)closure;
     return PyLong_FromLong(self->padding);
 }
 
-static PyMethodDef Section_methods[] = {
-    {"add", (PyCFunction)Section_add, METH_O, "Add reusable static content."},
-    {"add_section", (PyCFunction)Section_add_section, METH_O, "Add a nested section."},
-    {"add_h1", (PyCFunction)Section_add_h1, METH_O, "Add a level-one heading."},
-    {"add_h2", (PyCFunction)Section_add_h2, METH_O, "Add a level-two heading."},
-    {"add_h3", (PyCFunction)Section_add_h3, METH_O, "Add a level-three heading."},
-    {"add_p", (PyCFunction)Section_add_p, METH_O, "Add a wrapped paragraph."},
-    {"add_code_block", (PyCFunction)Section_add_code_block, METH_VARARGS | METH_KEYWORDS, "Add a code block."},
-    {"add_separator", (PyCFunction)Section_add_separator, METH_VARARGS | METH_KEYWORDS, "Add a separator."},
+static PyMethodDef Group_methods[] = {
+    {"add", (PyCFunction)Group_add, METH_VARARGS, "Add renderables to the group."},
     {NULL, NULL, 0, NULL},
 };
 
-static PyGetSetDef Section_getset[] = {
-    {"title", (getter)Section_get_title, NULL, "Section title.", NULL},
-    {"boxed", (getter)Section_get_boxed, NULL, "Whether the section is boxed.", NULL},
-    {"padding", (getter)Section_get_padding, NULL, "Section padding.", NULL},
+static PyGetSetDef Group_getset[] = {
+    {"label", (getter)Group_get_label, NULL, "Group label.", NULL},
+    {"boxed", (getter)Group_get_boxed, NULL, "Whether the group is boxed.", NULL},
+    {"padding", (getter)Group_get_padding, NULL, "Group padding.", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-PyTypeObject TFormDocSectionType = {
+PyTypeObject TFormDocGroupType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.Section",
-    .tp_basicsize = sizeof(TFormDocSectionObject),
-    .tp_dealloc = (destructor)Section_dealloc,
-    .tp_repr = (reprfunc)Section_repr,
+    .tp_name = "tform.Group",
+    .tp_basicsize = sizeof(TFormDocGroupObject),
+    .tp_dealloc = (destructor)Group_dealloc,
+    .tp_repr = (reprfunc)Group_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_doc = "Hierarchical read-only document section.",
-    .tp_traverse = (traverseproc)Section_traverse,
-    .tp_clear = (inquiry)Section_clear,
-    .tp_methods = Section_methods,
-    .tp_getset = Section_getset,
-    .tp_init = (initproc)Section_init,
-    .tp_new = Section_new,
+    .tp_doc = "Read-only document group for related renderables.",
+    .tp_traverse = (traverseproc)Group_traverse,
+    .tp_clear = (inquiry)Group_clear,
+    .tp_methods = Group_methods,
+    .tp_getset = Group_getset,
+    .tp_init = (initproc)Group_init,
+    .tp_new = Group_new,
 };
 
 static PyObject *Doc_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
@@ -499,9 +594,9 @@ static PyObject *Doc_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     TFormDocObject *self = (TFormDocObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->title = NULL;
-    self->sections = NULL;
-    self->section_count = 0;
-    self->section_capacity = 0;
+    self->children = NULL;
+    self->child_count = 0;
+    self->child_capacity = 0;
     self->margin_left = 0;
     self->margin_right = 0;
     self->margin_top = 0;
@@ -566,58 +661,51 @@ static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 static int Doc_traverse(TFormDocObject *self, visitproc visit, void *arg) {
-    for (int i = 0; i < self->section_count; i++) {
-        Py_VISIT(self->sections[i]);
+    for (Py_ssize_t i = 0; i < self->child_count; i++) {
+        Py_VISIT(self->children[i].object);
     }
     return 0;
 }
 
 static int Doc_clear(TFormDocObject *self) {
-    for (int i = 0; i < self->section_count; i++) {
-        Py_CLEAR(self->sections[i]);
+    for (Py_ssize_t i = 0; i < self->child_count; i++) {
+        Py_CLEAR(self->children[i].object);
     }
-    self->section_count = 0;
+    self->child_count = 0;
     return 0;
 }
 
 static void Doc_dealloc(TFormDocObject *self) {
     PyObject_GC_UnTrack(self);
     Doc_clear(self);
-    free(self->sections);
+    free(self->children);
     free(self->title);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static int doc_ensure_capacity(TFormDocObject *self, int needed) {
-    if (self->section_capacity >= needed) return 0;
-    int capacity = self->section_capacity ? self->section_capacity * 2 : 4;
-    while (capacity < needed) capacity *= 2;
-    PyObject **sections = realloc(
-        self->sections, (size_t)capacity * sizeof(*sections)
+static int doc_append_child(TFormDocObject *self, PyObject *object) {
+    return doc_node_array_append(
+        &self->children,
+        &self->child_count,
+        &self->child_capacity,
+        object
     );
-    if (!sections) {
-        PyErr_NoMemory();
-        return -1;
-    }
-    self->sections = sections;
-    self->section_capacity = capacity;
-    return 0;
 }
 
-static PyObject *Doc_add_section(TFormDocObject *self, PyObject *section) {
-    if (!PyObject_TypeCheck(section, &TFormDocSectionType)) {
-        PyErr_SetString(PyExc_TypeError, "section must be a Section");
-        return NULL;
+static PyObject *Doc_add(TFormDocObject *self, PyObject *args) {
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    for (Py_ssize_t i = 0; i < count; i++) {
+        if (doc_append_child(self, PyTuple_GET_ITEM(args, i)) < 0) {
+            return NULL;
+        }
     }
-    if (doc_ensure_capacity(self, self->section_count + 1) < 0) return NULL;
-    Py_INCREF(section);
-    self->sections[self->section_count++] = section;
-    Py_RETURN_NONE;
+    Py_INCREF(self);
+    return (PyObject *)self;
 }
 
 static PyObject *Doc_run(TFormDocObject *self, PyObject *Py_UNUSED(ignored)) {
-    if (self->section_count <= 0) {
-        PyErr_SetString(PyExc_ValueError, "document must contain at least one section");
+    if (self->child_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "document must contain at least one item");
         return NULL;
     }
     if (tform_run_doc(self) < 0) {
@@ -628,7 +716,7 @@ static PyObject *Doc_run(TFormDocObject *self, PyObject *Py_UNUSED(ignored)) {
 }
 
 static PyMethodDef Doc_methods[] = {
-    {"add_section", (PyCFunction)Doc_add_section, METH_O, "Add a root document section."},
+    {"add", (PyCFunction)Doc_add, METH_VARARGS, "Add renderables to the document flow."},
     {"run", (PyCFunction)Doc_run, METH_NOARGS, "Open the read-only document viewer."},
     {NULL, NULL, 0, NULL},
 };

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from os import PathLike
-from typing import Any, Literal
+from typing import Any, Literal, Self, TypeAlias
 
 LabelAlign = Literal["left", "center", "right"]
 TextColor = Literal["default", "white", "cyan", "yellow", "green", "blue", "magenta", "red"]
@@ -8,8 +8,21 @@ FilePickerMode = Literal["file", "directory"]
 ClockFormat = Literal["24h", "12h"]
 CheckboxTick = Literal["x", "block", "dot"]
 Label = str | "Text"
-SectionItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
+StaticItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
 DocItem = str | "Text" | "Table" | "BrailleCanvas" | "Image"
+ListItem: TypeAlias = str | "Text" | "Paragraph" | "OrderedList" | "UnorderedList"
+DocRenderable: TypeAlias = (
+    str
+    | "Text"
+    | "Paragraph"
+    | "Group"
+    | "Table"
+    | "CodeBlock"
+    | "BrailleCanvas"
+    | "Image"
+    | "OrderedList"
+    | "UnorderedList"
+)
 
 
 class Text:
@@ -196,16 +209,28 @@ class CodeBlock:
     def background(self) -> bool: ...
 
 
-class Section:
+class Paragraph:
+    def __init__(self, *parts: str | Text) -> None: ...
+
+
+class OrderedList:
+    def __init__(self, *items: ListItem) -> None: ...
+
+
+class UnorderedList:
+    def __init__(self, *items: ListItem) -> None: ...
+
+
+class Group:
     def __init__(
         self,
-        title: str,
+        label: str,
         boxed: bool = False,
         padding: int = 1,
     ) -> None: ...
 
     @property
-    def title(self) -> str: ...
+    def label(self) -> str: ...
 
     @property
     def boxed(self) -> bool: ...
@@ -213,25 +238,7 @@ class Section:
     @property
     def padding(self) -> int: ...
 
-    def add(self, item: DocItem) -> None: ...
-
-    def add_section(self, section: "Section") -> None: ...
-
-    def add_h1(self, text: Label) -> None: ...
-
-    def add_h2(self, text: Label) -> None: ...
-
-    def add_h3(self, text: Label) -> None: ...
-
-    def add_p(self, text: Label) -> None: ...
-
-    def add_code_block(
-        self,
-        code_or_block: str | CodeBlock,
-        lang: str | None = None,
-    ) -> None: ...
-
-    def add_separator(self, text: Label | None = None) -> None: ...
+    def add(self, *items: DocRenderable) -> Self: ...
 
 
 class Doc:
@@ -248,7 +255,7 @@ class Doc:
         show_border: bool = True,
     ) -> None: ...
 
-    def add_section(self, section: Section) -> None: ...
+    def add(self, *items: DocRenderable) -> Self: ...
 
     def run(self) -> None: ...
 
@@ -284,7 +291,7 @@ class Form:
 
     def add_section(
         self,
-        *items: SectionItem,
+        *items: StaticItem,
         boxed: bool = False,
         padding: int = 1,
     ) -> None: ...

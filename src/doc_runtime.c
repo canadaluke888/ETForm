@@ -9,8 +9,10 @@
 #include "ui_text.h"
 
 #include <locale.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 static int code_line_count(const char *code) {
     int lines = 1;
@@ -21,47 +23,337 @@ static int code_line_count(const char *code) {
     return lines;
 }
 
-static int doc_item_height(TFormDocItem *item, int width, int level);
+static int doc_node_height(TFormDocNode *node, int width, int level);
 
-static int doc_section_height(
-    TFormDocSectionObject *section,
+static int doc_text_color_pair(TFormTextColor color) {
+    switch (color) {
+        case TFORM_TEXT_COLOR_WHITE:
+            return GHOSTCODE_PAIR_NORMAL;
+        case TFORM_TEXT_COLOR_CYAN:
+            return GHOSTCODE_PAIR_SYNTAX_KEYWORD;
+        case TFORM_TEXT_COLOR_YELLOW:
+            return GHOSTCODE_PAIR_SYNTAX_TYPE;
+        case TFORM_TEXT_COLOR_GREEN:
+            return GHOSTCODE_PAIR_SYNTAX_STRING;
+        case TFORM_TEXT_COLOR_BLUE:
+            return GHOSTCODE_PAIR_SYNTAX_COMMENT;
+        case TFORM_TEXT_COLOR_MAGENTA:
+            return GHOSTCODE_PAIR_SYNTAX_NUMBER;
+        case TFORM_TEXT_COLOR_RED:
+            return GHOSTCODE_PAIR_GUTTER_MARKER;
+        case TFORM_TEXT_COLOR_DEFAULT:
+        default:
+            return GHOSTCODE_PAIR_NORMAL;
+    }
+}
+
+static int doc_text_attr(const TFormTextStyle *style) {
+    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL);
+    if (style && style->color != TFORM_TEXT_COLOR_DEFAULT && has_colors()) {
+        attr = COLOR_PAIR(doc_text_color_pair(style->color));
+    }
+    if (style && style->bold) attr |= A_BOLD;
+#ifdef A_ITALIC
+    if (style && style->italicized) attr |= A_ITALIC;
+#endif
+    if (style && style->dim) attr |= A_DIM;
+    if (style && style->underline) attr |= A_UNDERLINE;
+    if (style && style->blink) attr |= A_BLINK;
+    return attr;
+}
+
+static size_t next_char_bytes(const char *text, size_t offset, int *display_width) {
+    if (!text || !text[offset]) {
+        if (display_width) *display_width = 0;
+        return 0;
+    }
+    mbstate_t state;
+    memset(&state, 0, sizeof(state));
+    wchar_t ch;
+    size_t consumed = mbrtowc(&ch, text + offset, strlen(text + offset), &state);
+    if (consumed == (size_t)-1 || consumed == (size_t)-2 || consumed == 0) {
+        if (display_width) *display_width = 1;
+        return 1;
+    }
+    int width = ghostcode_ui_text_width_n(text + offset, consumed);
+    if (display_width) *display_width = width > 0 ? width : 1;
+    return consumed;
+}
+
+static size_t next_word_bytes(const char *text, size_t offset) {
+    size_t cursor = offset;
+    if (!text || !text[offset]) return 0;
+    while (text[cursor] &&
+           text[cursor] != '\r' &&
+           text[cursor] != '\n' &&
+           text[cursor] != ' ' &&
+           text[cursor] != '\t') {
+        int width;
+        size_t bytes = next_char_bytes(text, cursor, &width);
+        if (bytes == 0) break;
+        cursor += bytes;
+    }
+    return cursor - offset;
+}
+
+static int paragraph_height_prefixed(
+    TFormParagraphObject *paragraph,
+    int width,
+    int first_prefix_width,
+    int continuation_prefix_width
+) {
+    if (!paragraph || width <= 0) return 1;
+    int rows = 1;
+    int col = first_prefix_width < width ? first_prefix_width : 0;
+    for (Py_ssize_t i = 0; i < paragraph->run_count; i++) {
+        TFormTextStyle style;
+        if (tform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
+            PyErr_Clear();
+            continue;
+        }
+        const char *text = style.value ? style.value : "";
+        size_t offset = 0;
+        while (text[offset]) {
+            if (text[offset] == '\r' || text[offset] == '\n') {
+                if (text[offset] == '\r' && text[offset + 1] == '\n') offset++;
+                offset++;
+                rows++;
+                col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                continue;
+            }
+            if (text[offset] == ' ' || text[offset] == '\t') {
+                if (col == first_prefix_width || col == continuation_prefix_width) {
+                    offset++;
+                    continue;
+                }
+                if (col + 1 > width) {
+                    rows++;
+                    col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                    offset++;
+                    continue;
+                }
+                col++;
+                offset++;
+                continue;
+            }
+            size_t bytes = next_word_bytes(text, offset);
+            int token_width = ghostcode_ui_text_width_n(text + offset, bytes);
+            if (col > continuation_prefix_width && col + token_width > width) {
+                rows++;
+                col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+            }
+            if (token_width <= width - col) {
+                col += token_width;
+                offset += bytes;
+                continue;
+            }
+            size_t token_offset = 0;
+            while (token_offset < bytes) {
+                int char_width = 1;
+                size_t char_bytes = next_char_bytes(text, offset + token_offset, &char_width);
+                if (char_bytes == 0) break;
+                if (col > continuation_prefix_width && col + char_width > width) {
+                    rows++;
+                    col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                }
+                col += char_width;
+                token_offset += char_bytes;
+            }
+            offset += bytes;
+        }
+        tform_text_style_free(&style);
+    }
+    return rows;
+}
+
+static int paragraph_height(TFormParagraphObject *paragraph, int width) {
+    return paragraph_height_prefixed(paragraph, width, 0, 0);
+}
+
+static void draw_paragraph_prefixed(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormParagraphObject *paragraph,
+    const char *first_prefix,
+    int continuation_prefix_width,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !paragraph || width <= 0) return;
+    int row = 0;
+    int first_prefix_width = ghostcode_ui_text_width(first_prefix ? first_prefix : "");
+    int col = first_prefix_width < width ? first_prefix_width : 0;
+    if (first_prefix && *first_prefix && y >= clip_top && y < clip_bottom) {
+        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+        wmove(win, y, x);
+        ghostcode_ui_text_addstr_width(win, first_prefix, width);
+        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+    }
+    for (Py_ssize_t i = 0; i < paragraph->run_count; i++) {
+        TFormTextStyle style;
+        if (tform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
+            PyErr_Clear();
+            continue;
+        }
+        const char *text = style.value ? style.value : "";
+        int attr = doc_text_attr(&style);
+        size_t offset = 0;
+        while (text[offset]) {
+            if (text[offset] == '\r' || text[offset] == '\n') {
+                if (text[offset] == '\r' && text[offset + 1] == '\n') offset++;
+                offset++;
+                row++;
+                col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                continue;
+            }
+            if (text[offset] == ' ' || text[offset] == '\t') {
+                if (col == first_prefix_width || col == continuation_prefix_width) {
+                    offset++;
+                    continue;
+                }
+                if (col + 1 > width) {
+                    row++;
+                    col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                    offset++;
+                    continue;
+                }
+                int draw_y = y + row;
+                if (draw_y >= clip_top && draw_y < clip_bottom) {
+                    wattron(win, attr);
+                    mvwaddch(win, draw_y, x + col, ' ');
+                    wattroff(win, attr);
+                }
+                col++;
+                offset++;
+                continue;
+            }
+            size_t bytes = next_word_bytes(text, offset);
+            int token_width = ghostcode_ui_text_width_n(text + offset, bytes);
+            if (col > continuation_prefix_width && col + token_width > width) {
+                row++;
+                col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+            }
+            if (token_width <= width - col) {
+                int draw_y = y + row;
+                if (draw_y >= clip_top && draw_y < clip_bottom) {
+                    wattron(win, attr);
+                    wmove(win, draw_y, x + col);
+                    ghostcode_ui_text_addnstr_width(win, text + offset, bytes, width - col);
+                    wattroff(win, attr);
+                }
+                col += token_width;
+                offset += bytes;
+                continue;
+            }
+            size_t token_offset = 0;
+            while (token_offset < bytes) {
+                int char_width = 1;
+                size_t char_bytes = next_char_bytes(text, offset + token_offset, &char_width);
+                if (char_bytes == 0) break;
+                if (col > continuation_prefix_width && col + char_width > width) {
+                    row++;
+                    col = continuation_prefix_width < width ? continuation_prefix_width : 0;
+                }
+                int draw_y = y + row;
+                if (draw_y >= clip_top && draw_y < clip_bottom) {
+                    wattron(win, attr);
+                    wmove(win, draw_y, x + col);
+                    ghostcode_ui_text_addnstr_width(
+                        win, text + offset + token_offset, char_bytes, width - col
+                    );
+                    wattroff(win, attr);
+                }
+                col += char_width;
+                token_offset += char_bytes;
+            }
+            offset += bytes;
+        }
+        tform_text_style_free(&style);
+    }
+}
+
+static int doc_list_height(TFormDocListObject *list, int width, int level) {
+    if (!list || width <= 0) return 0;
+    int height = 0;
+    int indent = level * 2;
+    if (indent > width - 1) indent = width > 1 ? width - 1 : 0;
+    for (Py_ssize_t i = 0; i < list->item_count; i++) {
+        TFormDocListItem *item = &list->items[i];
+        if (item->kind == TFORM_DOC_LIST_ITEM_ORDERED_LIST ||
+            item->kind == TFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
+            height += doc_list_height((TFormDocListObject *)item->object, width, level + 1);
+            continue;
+        }
+        char marker[32];
+        if (list->ordered) {
+            snprintf(marker, sizeof(marker), "%*s%zd. ", indent, "", i + 1);
+        } else {
+            snprintf(marker, sizeof(marker), "%*s• ", indent, "");
+        }
+        int prefix_width = ghostcode_ui_text_width(marker);
+        height += paragraph_height_prefixed(
+            (TFormParagraphObject *)item->object,
+            width,
+            prefix_width,
+            prefix_width
+        );
+    }
+    return height > 0 ? height : 1;
+}
+
+static int doc_group_height(
+    TFormDocGroupObject *group,
     int width,
     int level
 ) {
-    if (!section || width <= 0) return 0;
-    int box_rows = section->boxed ? 2 : 0;
-    int inner_width = width - (section->boxed ? 4 : 0) - section->padding * 2;
+    if (!group || width <= 0) return 0;
+    int box_rows = group->boxed ? 2 : 0;
+    int inner_width = width - (group->boxed ? 4 : 0) - group->padding * 2;
     if (inner_width < 1) inner_width = 1;
-    int height = box_rows + section->padding * 2;
-    for (int i = 0; i < section->item_count; i++) {
+    int height = box_rows + group->padding * 2;
+    for (Py_ssize_t i = 0; i < group->child_count; i++) {
         if (i > 0) height++;
-        height += doc_item_height(&section->items[i], inner_width, level);
+        height += doc_node_height(&group->children[i], inner_width, level + 1);
     }
     if (height < box_rows + 1) height = box_rows + 1;
     return height;
 }
 
-static int doc_item_height(TFormDocItem *item, int width, int level) {
-    if (!item || width <= 0) return 0;
-    switch (item->type) {
-        case TFORM_DOC_ITEM_STATIC:
-            return tform_static_element_height(&item->element, width);
-        case TFORM_DOC_ITEM_PARAGRAPH:
-        case TFORM_DOC_ITEM_HEADING:
-            return tform_static_text_height(&item->text, width, 1);
-        case TFORM_DOC_ITEM_CODE_BLOCK:
-            return code_line_count(item->code) + (item->code_background ? 2 : 0);
-        case TFORM_DOC_ITEM_SEPARATOR:
-            return 1;
-        case TFORM_DOC_ITEM_SECTION: {
-            int child_width = width - 2;
-            if (child_width < 1) child_width = 1;
-            return doc_section_height(
-                (TFormDocSectionObject *)item->section,
-                child_width,
-                level + 1
-            );
-        }
+static int static_object_height(PyObject *object, int width) {
+    TFormSectionElement element;
+    memset(&element, 0, sizeof(element));
+    if (tform_section_element_from_object(&element, object) < 0) {
+        PyErr_Clear();
+        return 0;
+    }
+    int height = tform_static_element_height(&element, width);
+    tform_section_element_free(&element);
+    return height;
+}
+
+static int code_block_height(TFormCodeBlockObject *block) {
+    if (!block) return 0;
+    return code_line_count(block->code) + (block->background ? 2 : 0);
+}
+
+static int doc_node_height(TFormDocNode *node, int width, int level) {
+    if (!node || width <= 0) return 0;
+    switch (node->kind) {
+        case TFORM_DOC_NODE_PARAGRAPH:
+            return paragraph_height((TFormParagraphObject *)node->object, width);
+        case TFORM_DOC_NODE_GROUP:
+            return doc_group_height((TFormDocGroupObject *)node->object, width, level);
+        case TFORM_DOC_NODE_TABLE:
+        case TFORM_DOC_NODE_BRAILLE_CANVAS:
+        case TFORM_DOC_NODE_IMAGE:
+            return static_object_height(node->object, width);
+        case TFORM_DOC_NODE_CODE_BLOCK:
+            return code_block_height((TFormCodeBlockObject *)node->object);
+        case TFORM_DOC_NODE_ORDERED_LIST:
+        case TFORM_DOC_NODE_UNORDERED_LIST:
+            return doc_list_height((TFormDocListObject *)node->object, width, level);
     }
     return 0;
 }
@@ -69,11 +361,9 @@ static int doc_item_height(TFormDocItem *item, int width, int level) {
 static int doc_total_height(TFormDocObject *doc, int width) {
     int height = 0;
     if (!doc) return 0;
-    for (int i = 0; i < doc->section_count; i++) {
+    for (Py_ssize_t i = 0; i < doc->child_count; i++) {
         if (i > 0) height++;
-        height += doc_section_height(
-            (TFormDocSectionObject *)doc->sections[i], width, 0
-        );
+        height += doc_node_height(&doc->children[i], width, 0);
     }
     return height;
 }
@@ -261,16 +551,18 @@ static void draw_code_block(
     int y,
     int x,
     int width,
-    TFormDocItem *item,
+    const char *code,
+    const char *lang,
+    int background,
     int syntax_highlight,
     int clip_top,
     int clip_bottom
 ) {
-    if (!win || !item || width <= 0) return;
+    if (!win || width <= 0) return;
     int row = y;
     int content_x = x;
     int content_width = width;
-    if (item->code_background) {
+    if (background) {
         if (row >= clip_top && row < clip_bottom) {
             wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
             mvwhline(win, row, x, ' ', width);
@@ -282,21 +574,21 @@ static void draw_code_block(
         if (content_width < 1) content_width = 1;
     }
 
-    const char *code = item->code ? item->code : "";
-    SyntaxLanguage language = syntax_language_for_name(item->lang);
+    code = code ? code : "";
+    SyntaxLanguage language = syntax_language_for_name(lang);
     size_t offset = 0;
     for (;;) {
         const char *line = code + offset;
         size_t bytes = strcspn(line, "\r\n");
         if (row >= clip_top && row < clip_bottom) {
-            if (item->code_background) {
+            if (background) {
                 wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
                 mvwhline(win, row, x, ' ', width);
                 wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
             }
             draw_code_line(
                 win, row, content_x, content_width, line, bytes,
-                item->code_background, language, syntax_highlight
+                background, language, syntax_highlight
             );
         }
         row++;
@@ -309,58 +601,127 @@ static void draw_code_block(
         }
     }
 
-    if (item->code_background && row >= clip_top && row < clip_bottom) {
+    if (background && row >= clip_top && row < clip_bottom) {
         wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
         mvwhline(win, row, x, ' ', width);
         wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
     }
 }
 
-static void draw_separator(
+static void draw_static_object(
     WINDOW *win,
     int y,
     int x,
     int width,
-    TFormTextStyle *text,
+    PyObject *object,
     int clip_top,
     int clip_bottom
 ) {
-    if (!win || y < clip_top || y >= clip_bottom || width <= 0) return;
-    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER);
-    wattron(win, attr);
-    mvwhline(win, y, x, ACS_HLINE, width);
-    wattroff(win, attr);
-    const char *label = text && text->value ? text->value : "";
-    if (*label && width > 4) {
-        int label_width = ghostcode_ui_text_width(label);
-        if (label_width > width - 4) label_width = width - 4;
-        int label_x = x + (width - label_width) / 2;
-        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL) | A_BOLD);
-        mvwaddch(win, y, label_x - 1, ' ');
-        wmove(win, y, label_x);
-        ghostcode_ui_text_addstr_width(win, label, label_width);
-        waddch(win, ' ');
-        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL) | A_BOLD);
+    TFormSectionElement element;
+    memset(&element, 0, sizeof(element));
+    if (tform_section_element_from_object(&element, object) < 0) {
+        PyErr_Clear();
+        return;
     }
+    tform_draw_static_element(win, y, x, width, &element, clip_top, clip_bottom);
+    tform_section_element_free(&element);
 }
 
-static void draw_doc_section(
+static void draw_code_block_object(
     WINDOW *win,
     int y,
     int x,
     int width,
-    TFormDocSectionObject *section,
+    TFormCodeBlockObject *block,
+    int syntax_highlight,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!block) return;
+    draw_code_block(
+        win, y, x, width, block->code, block->lang, block->background,
+        syntax_highlight, clip_top, clip_bottom
+    );
+}
+
+static void draw_doc_list(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormDocListObject *list,
+    int level,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !list || width <= 0) return;
+    int row = y;
+    int indent = level * 2;
+    if (indent > width - 1) indent = width > 1 ? width - 1 : 0;
+    for (Py_ssize_t i = 0; i < list->item_count; i++) {
+        TFormDocListItem *item = &list->items[i];
+        if (item->kind == TFORM_DOC_LIST_ITEM_ORDERED_LIST ||
+            item->kind == TFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
+            int nested_height = doc_list_height(
+                (TFormDocListObject *)item->object, width, level + 1
+            );
+            draw_doc_list(
+                win, row, x, width, (TFormDocListObject *)item->object,
+                level + 1, clip_top, clip_bottom
+            );
+            row += nested_height;
+            continue;
+        }
+        char marker[32];
+        if (list->ordered) {
+            snprintf(marker, sizeof(marker), "%*s%zd. ", indent, "", i + 1);
+        } else {
+            snprintf(marker, sizeof(marker), "%*s• ", indent, "");
+        }
+        int prefix_width = ghostcode_ui_text_width(marker);
+        int height = paragraph_height_prefixed(
+            (TFormParagraphObject *)item->object,
+            width,
+            prefix_width,
+            prefix_width
+        );
+        draw_paragraph_prefixed(
+            win, row, x, width, (TFormParagraphObject *)item->object,
+            marker, prefix_width, clip_top, clip_bottom
+        );
+        row += height;
+    }
+}
+
+static void draw_doc_node(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormDocNode *node,
+    int level,
+    int syntax_highlight,
+    int clip_top,
+    int clip_bottom
+);
+
+static void draw_doc_group(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormDocGroupObject *group,
     int level,
     int syntax_highlight,
     int clip_top,
     int clip_bottom
 ) {
-    if (!win || !section || width <= 0) return;
-    int height = doc_section_height(section, width, level);
-    int inner_x = x + section->padding;
-    int inner_y = y + section->padding;
-    int inner_width = width - section->padding * 2;
-    if (section->boxed) {
+    if (!win || !group || width <= 0) return;
+    int height = doc_group_height(group, width, level);
+    int inner_x = x + group->padding;
+    int inner_y = y + group->padding;
+    int inner_width = width - group->padding * 2;
+    if (group->boxed) {
         tform_draw_static_box(
             win, y, x, width, height, clip_top, clip_bottom
         );
@@ -368,13 +729,13 @@ static void draw_doc_section(
         inner_y += 1;
         inner_width -= 4;
         if (y >= clip_top && y < clip_bottom &&
-            section->title && *section->title && width > 6) {
-            int title_width = ghostcode_ui_text_width(section->title);
+            group->label && *group->label && width > 6) {
+            int title_width = ghostcode_ui_text_width(group->label);
             if (title_width > width - 6) title_width = width - 6;
             wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER) | A_BOLD);
             mvwaddch(win, y, x + 2, ' ');
             wmove(win, y, x + 3);
-            ghostcode_ui_text_addstr_width(win, section->title, title_width);
+            ghostcode_ui_text_addstr_width(win, group->label, title_width);
             waddch(win, ' ');
             wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER) | A_BOLD);
         }
@@ -382,53 +743,61 @@ static void draw_doc_section(
     if (inner_width < 1) inner_width = 1;
 
     int row = inner_y;
-    for (int i = 0; i < section->item_count; i++) {
+    for (Py_ssize_t i = 0; i < group->child_count; i++) {
         if (i > 0) row++;
-        TFormDocItem *item = &section->items[i];
-        int item_height = doc_item_height(item, inner_width, level);
-        switch (item->type) {
-            case TFORM_DOC_ITEM_STATIC:
-                tform_draw_static_element(
-                    win, row, inner_x, inner_width, &item->element,
-                    clip_top, clip_bottom
-                );
-                break;
-            case TFORM_DOC_ITEM_PARAGRAPH:
-            case TFORM_DOC_ITEM_HEADING:
-                tform_draw_static_text(
-                    win, row, inner_x, inner_width, item_height,
-                    &item->text, 1, clip_top, clip_bottom
-                );
-                break;
-            case TFORM_DOC_ITEM_CODE_BLOCK:
-                draw_code_block(
-                    win, row, inner_x, inner_width, item,
-                    syntax_highlight,
-                    clip_top, clip_bottom
-                );
-                break;
-            case TFORM_DOC_ITEM_SEPARATOR:
-                draw_separator(
-                    win, row, inner_x, inner_width, &item->text,
-                    clip_top, clip_bottom
-                );
-                break;
-            case TFORM_DOC_ITEM_SECTION: {
-                int child_x = inner_x + 2;
-                int child_width = inner_width - 2;
-                if (child_width < 1) {
-                    child_x = inner_x;
-                    child_width = inner_width;
-                }
-                draw_doc_section(
-                    win, row, child_x, child_width,
-                    (TFormDocSectionObject *)item->section,
-                    level + 1, syntax_highlight, clip_top, clip_bottom
-                );
-                break;
-            }
-        }
+        TFormDocNode *node = &group->children[i];
+        int item_height = doc_node_height(node, inner_width, level + 1);
+        draw_doc_node(
+            win, row, inner_x, inner_width, node,
+            level + 1, syntax_highlight, clip_top, clip_bottom
+        );
         row += item_height;
+    }
+}
+
+static void draw_doc_node(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    TFormDocNode *node,
+    int level,
+    int syntax_highlight,
+    int clip_top,
+    int clip_bottom
+) {
+    if (!win || !node || width <= 0) return;
+    switch (node->kind) {
+        case TFORM_DOC_NODE_PARAGRAPH:
+            draw_paragraph_prefixed(
+                win, y, x, width, (TFormParagraphObject *)node->object,
+                "", 0, clip_top, clip_bottom
+            );
+            break;
+        case TFORM_DOC_NODE_GROUP:
+            draw_doc_group(
+                win, y, x, width, (TFormDocGroupObject *)node->object,
+                level, syntax_highlight, clip_top, clip_bottom
+            );
+            break;
+        case TFORM_DOC_NODE_TABLE:
+        case TFORM_DOC_NODE_BRAILLE_CANVAS:
+        case TFORM_DOC_NODE_IMAGE:
+            draw_static_object(win, y, x, width, node->object, clip_top, clip_bottom);
+            break;
+        case TFORM_DOC_NODE_CODE_BLOCK:
+            draw_code_block_object(
+                win, y, x, width, (TFormCodeBlockObject *)node->object,
+                syntax_highlight, clip_top, clip_bottom
+            );
+            break;
+        case TFORM_DOC_NODE_ORDERED_LIST:
+        case TFORM_DOC_NODE_UNORDERED_LIST:
+            draw_doc_list(
+                win, y, x, width, (TFormDocListObject *)node->object,
+                level, clip_top, clip_bottom
+            );
+            break;
     }
 }
 
@@ -492,22 +861,21 @@ static void draw_doc(
     }
 
     int row = document_y + (border_visible ? 1 : 0);
-    for (int i = 0; i < doc->section_count; i++) {
+    for (Py_ssize_t i = 0; i < doc->child_count; i++) {
         if (i > 0) row++;
-        TFormDocSectionObject *section =
-            (TFormDocSectionObject *)doc->sections[i];
-        draw_doc_section(
+        TFormDocNode *node = &doc->children[i];
+        draw_doc_node(
             main_panel->win,
             row,
             content_x,
             content_width,
-            section,
+            node,
             0,
             doc->syntax_highlight,
             clip_top,
             clip_bottom
         );
-        row += doc_section_height(section, content_width, 0);
+        row += doc_node_height(node, content_width, 0);
     }
 
     ghostcode_ui_draw_footer(
