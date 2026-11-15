@@ -28,27 +28,27 @@ static int doc_node_height(TFormDocNode *node, int width, int level);
 static int doc_text_color_pair(TFormTextColor color) {
     switch (color) {
         case TFORM_TEXT_COLOR_WHITE:
-            return GHOSTCODE_PAIR_NORMAL;
+            return TFORM_PAIR_NORMAL;
         case TFORM_TEXT_COLOR_CYAN:
-            return GHOSTCODE_PAIR_SYNTAX_KEYWORD;
+            return TFORM_PAIR_SYNTAX_KEYWORD;
         case TFORM_TEXT_COLOR_YELLOW:
-            return GHOSTCODE_PAIR_SYNTAX_TYPE;
+            return TFORM_PAIR_SYNTAX_TYPE;
         case TFORM_TEXT_COLOR_GREEN:
-            return GHOSTCODE_PAIR_SYNTAX_STRING;
+            return TFORM_PAIR_SYNTAX_STRING;
         case TFORM_TEXT_COLOR_BLUE:
-            return GHOSTCODE_PAIR_SYNTAX_COMMENT;
+            return TFORM_PAIR_SYNTAX_COMMENT;
         case TFORM_TEXT_COLOR_MAGENTA:
-            return GHOSTCODE_PAIR_SYNTAX_NUMBER;
+            return TFORM_PAIR_SYNTAX_NUMBER;
         case TFORM_TEXT_COLOR_RED:
-            return GHOSTCODE_PAIR_GUTTER_MARKER;
+            return TFORM_PAIR_GUTTER_MARKER;
         case TFORM_TEXT_COLOR_DEFAULT:
         default:
-            return GHOSTCODE_PAIR_NORMAL;
+            return TFORM_PAIR_NORMAL;
     }
 }
 
 static int doc_text_attr(const TFormTextStyle *style) {
-    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL);
+    int attr = tform_color_pair(TFORM_PAIR_NORMAL);
     if (style && style->color != TFORM_TEXT_COLOR_DEFAULT && has_colors()) {
         attr = COLOR_PAIR(doc_text_color_pair(style->color));
     }
@@ -75,7 +75,7 @@ static size_t next_char_bytes(const char *text, size_t offset, int *display_widt
         if (display_width) *display_width = 1;
         return 1;
     }
-    int width = ghostcode_ui_text_width_n(text + offset, consumed);
+    int width = tform_ui_text_width_n(text + offset, consumed);
     if (display_width) *display_width = width > 0 ? width : 1;
     return consumed;
 }
@@ -137,7 +137,7 @@ static int paragraph_height_prefixed(
                 continue;
             }
             size_t bytes = next_word_bytes(text, offset);
-            int token_width = ghostcode_ui_text_width_n(text + offset, bytes);
+            int token_width = tform_ui_text_width_n(text + offset, bytes);
             if (col > continuation_prefix_width && col + token_width > width) {
                 rows++;
                 col = continuation_prefix_width < width ? continuation_prefix_width : 0;
@@ -183,13 +183,13 @@ static void draw_paragraph_prefixed(
 ) {
     if (!win || !paragraph || width <= 0) return;
     int row = 0;
-    int first_prefix_width = ghostcode_ui_text_width(first_prefix ? first_prefix : "");
+    int first_prefix_width = tform_ui_text_width(first_prefix ? first_prefix : "");
     int col = first_prefix_width < width ? first_prefix_width : 0;
     if (first_prefix && *first_prefix && y >= clip_top && y < clip_bottom) {
-        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+        wattron(win, tform_color_pair(TFORM_PAIR_NORMAL));
         wmove(win, y, x);
-        ghostcode_ui_text_addstr_width(win, first_prefix, width);
-        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+        tform_ui_text_addstr_width(win, first_prefix, width);
+        wattroff(win, tform_color_pair(TFORM_PAIR_NORMAL));
     }
     for (Py_ssize_t i = 0; i < paragraph->run_count; i++) {
         TFormTextStyle style;
@@ -230,7 +230,7 @@ static void draw_paragraph_prefixed(
                 continue;
             }
             size_t bytes = next_word_bytes(text, offset);
-            int token_width = ghostcode_ui_text_width_n(text + offset, bytes);
+            int token_width = tform_ui_text_width_n(text + offset, bytes);
             if (col > continuation_prefix_width && col + token_width > width) {
                 row++;
                 col = continuation_prefix_width < width ? continuation_prefix_width : 0;
@@ -240,7 +240,7 @@ static void draw_paragraph_prefixed(
                 if (draw_y >= clip_top && draw_y < clip_bottom) {
                     wattron(win, attr);
                     wmove(win, draw_y, x + col);
-                    ghostcode_ui_text_addnstr_width(win, text + offset, bytes, width - col);
+                    tform_ui_text_addnstr_width(win, text + offset, bytes, width - col);
                     wattroff(win, attr);
                 }
                 col += token_width;
@@ -260,7 +260,7 @@ static void draw_paragraph_prefixed(
                 if (draw_y >= clip_top && draw_y < clip_bottom) {
                     wattron(win, attr);
                     wmove(win, draw_y, x + col);
-                    ghostcode_ui_text_addnstr_width(
+                    tform_ui_text_addnstr_width(
                         win, text + offset + token_offset, char_bytes, width - col
                     );
                     wattroff(win, attr);
@@ -292,7 +292,7 @@ static int doc_list_height(TFormDocListObject *list, int width, int level) {
         } else {
             snprintf(marker, sizeof(marker), "%*s• ", indent, "");
         }
-        int prefix_width = ghostcode_ui_text_width(marker);
+        int prefix_width = tform_ui_text_width(marker);
         height += paragraph_height_prefixed(
             (TFormParagraphObject *)item->object,
             width,
@@ -421,7 +421,7 @@ static void draw_doc_border(
     if (!win || width < 2 || height < 2) return;
     int right = x + width - 1;
     int last_row = top + height - 1;
-    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER);
+    int attr = tform_color_pair(TFORM_PAIR_FOOTER_BORDER);
     wattron(win, attr);
     if (top >= clip_top && top < clip_bottom) {
         mvwaddstr(win, top, x, "┌");
@@ -458,36 +458,36 @@ static int syntax_token_pair(SyntaxTokenKind kind, int background) {
     switch (kind) {
         case SYNTAX_TOKEN_COMMENT:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_COMMENT
-                : GHOSTCODE_PAIR_SYNTAX_COMMENT;
+                ? TFORM_PAIR_DOC_SYNTAX_COMMENT
+                : TFORM_PAIR_SYNTAX_COMMENT;
         case SYNTAX_TOKEN_STRING:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_STRING
-                : GHOSTCODE_PAIR_SYNTAX_STRING;
+                ? TFORM_PAIR_DOC_SYNTAX_STRING
+                : TFORM_PAIR_SYNTAX_STRING;
         case SYNTAX_TOKEN_NUMBER:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_NUMBER
-                : GHOSTCODE_PAIR_SYNTAX_NUMBER;
+                ? TFORM_PAIR_DOC_SYNTAX_NUMBER
+                : TFORM_PAIR_SYNTAX_NUMBER;
         case SYNTAX_TOKEN_KEYWORD:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_KEYWORD
-                : GHOSTCODE_PAIR_SYNTAX_KEYWORD;
+                ? TFORM_PAIR_DOC_SYNTAX_KEYWORD
+                : TFORM_PAIR_SYNTAX_KEYWORD;
         case SYNTAX_TOKEN_TYPE:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_TYPE
-                : GHOSTCODE_PAIR_SYNTAX_TYPE;
+                ? TFORM_PAIR_DOC_SYNTAX_TYPE
+                : TFORM_PAIR_SYNTAX_TYPE;
         case SYNTAX_TOKEN_PREPROCESSOR:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_PREPROCESSOR
-                : GHOSTCODE_PAIR_SYNTAX_PREPROCESSOR;
+                ? TFORM_PAIR_DOC_SYNTAX_PREPROCESSOR
+                : TFORM_PAIR_SYNTAX_PREPROCESSOR;
         case SYNTAX_TOKEN_OPERATOR:
             return background
-                ? GHOSTCODE_PAIR_DOC_SYNTAX_OPERATOR
-                : GHOSTCODE_PAIR_SYNTAX_OPERATOR;
+                ? TFORM_PAIR_DOC_SYNTAX_OPERATOR
+                : TFORM_PAIR_SYNTAX_OPERATOR;
         case SYNTAX_TOKEN_PLAIN:
-            return background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+            return background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
     }
-    return background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+    return background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
 }
 
 static void draw_syntax_token(
@@ -498,11 +498,11 @@ static void draw_syntax_token(
 ) {
     SyntaxDrawContext *draw = user_data;
     if (!draw || draw->remaining <= 0) return;
-    int attr = ghostcode_color_pair(
+    int attr = tform_color_pair(
         (short)syntax_token_pair(kind, draw->background)
     );
     wattron(draw->win, attr);
-    int drawn = ghostcode_ui_text_addnstr_width(
+    int drawn = tform_ui_text_addnstr_width(
         draw->win, text, bytes, draw->remaining
     );
     wattroff(draw->win, attr);
@@ -520,21 +520,21 @@ static void draw_code_line(
     SyntaxLanguage language,
     int syntax_highlight
 ) {
-    int plain_pair = background ? GHOSTCODE_PAIR_DOC_CODE : GHOSTCODE_PAIR_NORMAL;
+    int plain_pair = background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
     if (!syntax_highlight || language == SYNTAX_LANGUAGE_UNKNOWN) {
-        wattron(win, ghostcode_color_pair((short)plain_pair));
+        wattron(win, tform_color_pair((short)plain_pair));
         wmove(win, y, x);
-        ghostcode_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, ghostcode_color_pair((short)plain_pair));
+        tform_ui_text_addnstr_width(win, line, bytes, width);
+        wattroff(win, tform_color_pair((short)plain_pair));
         return;
     }
 
     char *line_copy = malloc(bytes + 1);
     if (!line_copy) {
-        wattron(win, ghostcode_color_pair((short)plain_pair));
+        wattron(win, tform_color_pair((short)plain_pair));
         wmove(win, y, x);
-        ghostcode_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, ghostcode_color_pair((short)plain_pair));
+        tform_ui_text_addnstr_width(win, line, bytes, width);
+        wattroff(win, tform_color_pair((short)plain_pair));
         return;
     }
     memcpy(line_copy, line, bytes);
@@ -564,9 +564,9 @@ static void draw_code_block(
     int content_width = width;
     if (background) {
         if (row >= clip_top && row < clip_bottom) {
-            wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+            wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
             mvwhline(win, row, x, ' ', width);
-            wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+            wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
         }
         row++;
         content_x++;
@@ -582,9 +582,9 @@ static void draw_code_block(
         size_t bytes = strcspn(line, "\r\n");
         if (row >= clip_top && row < clip_bottom) {
             if (background) {
-                wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+                wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
                 mvwhline(win, row, x, ' ', width);
-                wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+                wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
             }
             draw_code_line(
                 win, row, content_x, content_width, line, bytes,
@@ -602,9 +602,9 @@ static void draw_code_block(
     }
 
     if (background && row >= clip_top && row < clip_bottom) {
-        wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+        wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
         mvwhline(win, row, x, ' ', width);
-        wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_DOC_CODE));
+        wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
     }
 }
 
@@ -678,7 +678,7 @@ static void draw_doc_list(
         } else {
             snprintf(marker, sizeof(marker), "%*s• ", indent, "");
         }
-        int prefix_width = ghostcode_ui_text_width(marker);
+        int prefix_width = tform_ui_text_width(marker);
         int height = paragraph_height_prefixed(
             (TFormParagraphObject *)item->object,
             width,
@@ -730,14 +730,14 @@ static void draw_doc_group(
         inner_width -= 4;
         if (y >= clip_top && y < clip_bottom &&
             group->label && *group->label && width > 6) {
-            int title_width = ghostcode_ui_text_width(group->label);
+            int title_width = tform_ui_text_width(group->label);
             if (title_width > width - 6) title_width = width - 6;
-            wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER) | A_BOLD);
+            wattron(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER) | A_BOLD);
             mvwaddch(win, y, x + 2, ' ');
             wmove(win, y, x + 3);
-            ghostcode_ui_text_addstr_width(win, group->label, title_width);
+            tform_ui_text_addstr_width(win, group->label, title_width);
             waddch(win, ' ');
-            wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER) | A_BOLD);
+            wattroff(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER) | A_BOLD);
         }
     }
     if (inner_width < 1) inner_width = 1;
@@ -802,27 +802,27 @@ static void draw_doc_node(
 }
 
 static void draw_doc(
-    GhostcodePmNode *main_panel,
-    GhostcodePmNode *footer_panel,
+    TFormPmNode *main_panel,
+    TFormPmNode *footer_panel,
     TFormDocObject *doc,
     int *top
 ) {
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) footer_h = 1;
-    ghostcode_pm_resize(main_panel, body_h, COLS);
-    ghostcode_pm_resize(footer_panel, footer_h, COLS);
-    ghostcode_pm_move(footer_panel, body_h, 0);
+    tform_pm_resize(main_panel, body_h, COLS);
+    tform_pm_resize(footer_panel, footer_h, COLS);
+    tform_pm_move(footer_panel, body_h, 0);
     werase(main_panel->win);
-    wbkgd(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
-    wattron(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER));
+    wbkgd(main_panel->win, tform_color_pair(TFORM_PAIR_NORMAL));
+    wattron(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
     mvwhline(main_panel->win, 0, 0, ' ', COLS);
     mvwprintw(
         main_panel->win, 0, 1, "%.*s",
         COLS > 2 ? COLS - 2 : 0,
         doc->title ? doc->title : "TForm Doc"
     );
-    wattroff(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER));
+    wattroff(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
 
     int content_x;
     int content_width;
@@ -878,18 +878,18 @@ static void draw_doc(
         row += doc_node_height(node, content_width, 0);
     }
 
-    ghostcode_ui_draw_footer(
+    tform_ui_draw_footer(
         footer_panel->win,
         "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q/Esc] Exit"
     );
-    ghostcode_pm_wnoutrefresh(main_panel);
-    ghostcode_pm_wnoutrefresh(footer_panel);
-    ghostcode_pm_update();
+    tform_pm_wnoutrefresh(main_panel);
+    tform_pm_wnoutrefresh(footer_panel);
+    tform_pm_update();
 }
 
 int tform_run_doc(TFormDocObject *doc) {
     setlocale(LC_ALL, "");
-    ghostcode_disable_flow_control();
+    tform_disable_flow_control();
     setenv("TERM", "xterm-256color", 0);
     initscr();
     cbreak();
@@ -897,22 +897,22 @@ int tform_run_doc(TFormDocObject *doc) {
     keypad(stdscr, TRUE);
     set_escdelay(25);
     curs_set(0);
-    ghostcode_init_editor_theme();
-    ghostcode_pm_init();
+    tform_init_editor_theme();
+    tform_pm_init();
 
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) footer_h = 1;
-    GhostcodePmNode *main_panel = ghostcode_pm_add(
+    TFormPmNode *main_panel = tform_pm_add(
         0, 0, body_h, COLS,
-        GHOSTCODE_PM_LAYER_MAIN, GHOSTCODE_PM_LAYER_MAIN
+        TFORM_PM_LAYER_MAIN, TFORM_PM_LAYER_MAIN
     );
-    GhostcodePmNode *footer_panel = ghostcode_pm_add(
+    TFormPmNode *footer_panel = tform_pm_add(
         body_h, 0, footer_h, COLS,
-        GHOSTCODE_PM_LAYER_FOOTER, GHOSTCODE_PM_LAYER_FOOTER
+        TFORM_PM_LAYER_FOOTER, TFORM_PM_LAYER_FOOTER
     );
     if (!main_panel || !footer_panel) {
-        ghostcode_pm_teardown();
+        tform_pm_teardown();
         endwin();
         return -1;
     }
@@ -962,7 +962,7 @@ int tform_run_doc(TFormDocObject *doc) {
         }
     }
 
-    ghostcode_pm_teardown();
+    tform_pm_teardown();
     endwin();
     return 0;
 }

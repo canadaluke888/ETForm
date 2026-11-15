@@ -5,23 +5,23 @@
 
 #include <string.h>
 
-int ghostcode_ui_list_row_is_selectable(const GhostcodeUiListRow *row) {
-    return row && row->kind == GHOSTCODE_UI_LIST_ROW_ITEM && row->enabled;
+int tform_ui_list_row_is_selectable(const TFormUiListRow *row) {
+    return row && row->kind == TFORM_UI_LIST_ROW_ITEM && row->enabled;
 }
 
-int ghostcode_ui_list_find_first_selectable(const GhostcodeUiListRow *rows, int count) {
+int tform_ui_list_find_first_selectable(const TFormUiListRow *rows, int count) {
     if (!rows || count <= 0) {
         return -1;
     }
     for (int i = 0; i < count; i++) {
-        if (ghostcode_ui_list_row_is_selectable(&rows[i])) {
+        if (tform_ui_list_row_is_selectable(&rows[i])) {
             return i;
         }
     }
     return -1;
 }
 
-int ghostcode_ui_list_find_next_selectable(const GhostcodeUiListRow *rows, int count, int start, int dir) {
+int tform_ui_list_find_next_selectable(const TFormUiListRow *rows, int count, int start, int dir) {
     if (!rows || count <= 0 || dir == 0) {
         return -1;
     }
@@ -34,15 +34,15 @@ int ghostcode_ui_list_find_next_selectable(const GhostcodeUiListRow *rows, int c
         } else if (index >= count) {
             index = 0;
         }
-        if (ghostcode_ui_list_row_is_selectable(&rows[index])) {
+        if (tform_ui_list_row_is_selectable(&rows[index])) {
             return index;
         }
     }
     return -1;
 }
 
-void ghostcode_ui_list_clamp_view(
-    const GhostcodeUiListRow *rows,
+void tform_ui_list_clamp_view(
+    const TFormUiListRow *rows,
     int count,
     int visible,
     int *top,
@@ -56,8 +56,8 @@ void ghostcode_ui_list_clamp_view(
     if (visible < 1) {
         visible = 1;
     }
-    if (*selected < 0 || *selected >= count || !ghostcode_ui_list_row_is_selectable(&rows[*selected])) {
-        *selected = ghostcode_ui_list_find_first_selectable(rows, count);
+    if (*selected < 0 || *selected >= count || !tform_ui_list_row_is_selectable(&rows[*selected])) {
+        *selected = tform_ui_list_find_first_selectable(rows, count);
     }
     if (*selected < 0) {
         *selected = 0;
@@ -81,12 +81,12 @@ void ghostcode_ui_list_clamp_view(
     }
 }
 
-int ghostcode_ui_list_row_at(
+int tform_ui_list_row_at(
     int top,
     int visible,
     int list_top_row,
     int window_row,
-    const GhostcodeUiListRow *rows,
+    const TFormUiListRow *rows,
     int count
 ) {
     if (!rows || count <= 0 || visible <= 0) {
@@ -103,9 +103,9 @@ int ghostcode_ui_list_row_at(
     return index;
 }
 
-void ghostcode_ui_list_draw(
+void tform_ui_list_draw(
     WINDOW *win,
-    const GhostcodeUiListRow *rows,
+    const TFormUiListRow *rows,
     int count,
     int top,
     int selected,
@@ -132,27 +132,27 @@ void ghostcode_ui_list_draw(
             continue;
         }
 
-        if (rows[index].kind == GHOSTCODE_UI_LIST_ROW_HEADER) {
-            wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER) | A_BOLD);
+        if (rows[index].kind == TFORM_UI_LIST_ROW_HEADER) {
+            wattron(win, tform_color_pair(TFORM_PAIR_HEADER) | A_BOLD);
             wmove(win, y + row, content_x);
-            ghostcode_ui_text_addstr_width(win, label, content_w);
-            wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER) | A_BOLD);
-        } else if (rows[index].kind == GHOSTCODE_UI_LIST_ROW_DIVIDER) {
+            tform_ui_text_addstr_width(win, label, content_w);
+            wattroff(win, tform_color_pair(TFORM_PAIR_HEADER) | A_BOLD);
+        } else if (rows[index].kind == TFORM_UI_LIST_ROW_DIVIDER) {
             mvwhline(win, y + row, content_x, ACS_HLINE, content_w);
-        } else if (rows[index].kind == GHOSTCODE_UI_LIST_ROW_ITEM) {
+        } else if (rows[index].kind == TFORM_UI_LIST_ROW_ITEM) {
             int row_attrs = rows[index].attrs;
             if (rows[index].color_pair && has_colors()) {
                 row_attrs |= COLOR_PAIR(rows[index].color_pair);
             }
             if (index == selected) {
-                wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_CURSOR) | A_BOLD);
+                wattron(win, tform_color_pair(TFORM_PAIR_CURSOR) | A_BOLD);
             } else if (row_attrs) {
                 wattron(win, row_attrs);
             }
             wmove(win, y + row, content_x);
-            ghostcode_ui_text_addstr_width(win, label, content_w);
+            tform_ui_text_addstr_width(win, label, content_w);
             if (index == selected) {
-                wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_CURSOR) | A_BOLD);
+                wattroff(win, tform_color_pair(TFORM_PAIR_CURSOR) | A_BOLD);
             } else if (row_attrs) {
                 wattroff(win, row_attrs);
             }
