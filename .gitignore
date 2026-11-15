@@ -1,3 +1,6 @@
+# Snapshot config
+.gc
+
 *.egg-info
 *.pyc
 *.so
