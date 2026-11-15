@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-void ghostcode_ui_draw_status_segment(WINDOW *win, int y, int *x, int max_x, int attr, const char *text) {
+void tform_ui_draw_status_segment(WINDOW *win, int y, int *x, int max_x, int attr, const char *text) {
     int remaining;
 
     if (!win || !x || !text || !*text || *x > max_x) {
@@ -18,11 +18,11 @@ void ghostcode_ui_draw_status_segment(WINDOW *win, int y, int *x, int max_x, int
 
     wmove(win, y, *x);
     wattron(win, attr);
-    *x += ghostcode_ui_text_addstr_width(win, text, remaining);
+    *x += tform_ui_text_addstr_width(win, text, remaining);
     wattroff(win, attr);
 }
 
-void ghostcode_ui_draw_action_hint_segment(WINDOW *win, int y, int *x, int max_x, const char *text) {
+void tform_ui_draw_action_hint_segment(WINDOW *win, int y, int *x, int max_x, const char *text) {
     const char *cursor = text;
 
     if (!win || !text) {
@@ -32,8 +32,8 @@ void ghostcode_ui_draw_action_hint_segment(WINDOW *win, int y, int *x, int max_x
     while (*cursor && *x <= max_x) {
         const char *open = strchr(cursor, '[');
         if (!open) {
-            ghostcode_ui_draw_status_segment(
-                win, y, x, max_x, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_TEXT), cursor
+            tform_ui_draw_status_segment(
+                win, y, x, max_x, tform_color_pair(TFORM_PAIR_FOOTER_TEXT), cursor
             );
             break;
         }
@@ -45,15 +45,15 @@ void ghostcode_ui_draw_action_hint_segment(WINDOW *win, int y, int *x, int max_x
             }
             memcpy(plain, cursor, len);
             plain[len] = '\0';
-            ghostcode_ui_draw_status_segment(
-                win, y, x, max_x, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_TEXT), plain
+            tform_ui_draw_status_segment(
+                win, y, x, max_x, tform_color_pair(TFORM_PAIR_FOOTER_TEXT), plain
             );
         }
 
         const char *close = strchr(open + 1, ']');
         if (!close) {
-            ghostcode_ui_draw_status_segment(
-                win, y, x, max_x, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_TEXT), open
+            tform_ui_draw_status_segment(
+                win, y, x, max_x, tform_color_pair(TFORM_PAIR_FOOTER_TEXT), open
             );
             break;
         }
@@ -65,20 +65,20 @@ void ghostcode_ui_draw_action_hint_segment(WINDOW *win, int y, int *x, int max_x
         }
         memcpy(key, open, len);
         key[len] = '\0';
-        ghostcode_ui_draw_status_segment(
-            win, y, x, max_x, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_KEY) | A_BOLD, key
+        tform_ui_draw_status_segment(
+            win, y, x, max_x, tform_color_pair(TFORM_PAIR_FOOTER_KEY) | A_BOLD, key
         );
         cursor = close + 1;
     }
 }
 
-void ghostcode_ui_draw_footer_separator(WINDOW *win, int y, int *x, int max_x) {
-    ghostcode_ui_draw_status_segment(
-        win, y, x, max_x, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_SEPARATOR) | A_BOLD, "  |  "
+void tform_ui_draw_footer_separator(WINDOW *win, int y, int *x, int max_x) {
+    tform_ui_draw_status_segment(
+        win, y, x, max_x, tform_color_pair(TFORM_PAIR_FOOTER_SEPARATOR) | A_BOLD, "  |  "
     );
 }
 
-void ghostcode_ui_draw_footer_box(WINDOW *win) {
+void tform_ui_draw_footer_box(WINDOW *win) {
     int h;
     int w;
 
@@ -90,12 +90,12 @@ void ghostcode_ui_draw_footer_box(WINDOW *win) {
         return;
     }
 
-    wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER));
+    wattron(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
     box(win, 0, 0);
-    wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER));
+    wattroff(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
 }
 
-void ghostcode_ui_draw_footer(WINDOW *win, const char *hint_text) {
+void tform_ui_draw_footer(WINDOW *win, const char *hint_text) {
     int h;
     int w;
     int y;
@@ -107,12 +107,12 @@ void ghostcode_ui_draw_footer(WINDOW *win, const char *hint_text) {
     }
     getmaxyx(win, h, w);
     werase(win);
-    ghostcode_ui_draw_footer_box(win);
+    tform_ui_draw_footer_box(win);
     if (h < 2 || w < 4) {
         return;
     }
 
     y = h / 2;
     max_x = w - 3;
-    ghostcode_ui_draw_action_hint_segment(win, y, &x, max_x, hint_text);
+    tform_ui_draw_action_hint_segment(win, y, &x, max_x, hint_text);
 }

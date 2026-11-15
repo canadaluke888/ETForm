@@ -557,7 +557,7 @@ static void show_int_bounds_error(TFormField *field, long attempted) {
         snprintf(message, sizeof(message), "%s is outside the supported integer range.", field->label.value ? field->label.value : "Value");
     }
     (void)attempted;
-    ghostcode_message_dialog(message);
+    tform_message_dialog(message);
 }
 
 static char *open_field_tool(TFormField *field, const char *initial_value) {
@@ -565,10 +565,10 @@ static char *open_field_tool(TFormField *field, const char *initial_value) {
         return NULL;
     }
     if (field->has_calendar) {
-        return ghostcode_calendar_dialog(field->label.value, initial_value);
+        return tform_calendar_dialog(field->label.value, initial_value);
     }
     if (field->has_clock) {
-        return ghostcode_clock_dialog(
+        return tform_clock_dialog(
             field->label.value,
             initial_value,
             field->clock_format_12h,
@@ -576,7 +576,7 @@ static char *open_field_tool(TFormField *field, const char *initial_value) {
         );
     }
     if (field->has_file_picker) {
-        return ghostcode_file_picker_dialog(
+        return tform_file_picker_dialog(
             field->label.value,
             field->file_picker_mode,
             field->file_picker_start_dir
@@ -630,9 +630,9 @@ static void draw_input_cursor(WINDOW *win, int y, int x, char ch) {
     if (ch < 32 || ch > 126) {
         ch = ' ';
     }
-    wattron(win, ghostcode_color_pair(GHOSTCODE_PAIR_CURSOR_ALT));
+    wattron(win, tform_color_pair(TFORM_PAIR_CURSOR_ALT));
     mvwaddch(win, y, x, ch);
-    wattroff(win, ghostcode_color_pair(GHOSTCODE_PAIR_CURSOR_ALT));
+    wattroff(win, tform_color_pair(TFORM_PAIR_CURSOR_ALT));
 }
 
 static int read_form_key(WINDOW *win) {
@@ -689,7 +689,7 @@ static void edit_field(TFormField *field) {
             if (!field->scrollable) {
                 char initial[64];
                 snprintf(initial, sizeof(initial), "%d", field->int_value);
-                char *value = ghostcode_query_dialog(field->label.value, initial);
+                char *value = tform_query_dialog(field->label.value, initial);
                 if (value) {
                     trim_in_place(value);
                     if (*value) {
@@ -781,7 +781,7 @@ static size_t text_section_word_wrap_chunk(const char *line, size_t bytes, int w
     if (width <= 0) {
         return bytes;
     }
-    size_t fit = ghostcode_ui_text_bytes_for_width(line, width);
+    size_t fit = tform_ui_text_bytes_for_width(line, width);
     if (fit == 0 || fit > bytes) {
         fit = bytes;
     }
@@ -846,14 +846,14 @@ static void table_column_widths(TFormTable *table, int *widths) {
         return;
     }
     for (int col = 0; col < table->column_count; col++) {
-        widths[col] = ghostcode_ui_text_width(table->columns[col] ? table->columns[col] : "");
+        widths[col] = tform_ui_text_width(table->columns[col] ? table->columns[col] : "");
     }
     for (int row = 0; row < table->row_count; row++) {
         if (table->rows[row].is_separator) {
             continue;
         }
         for (int col = 0; col < table->column_count; col++) {
-            int width = ghostcode_ui_text_width(table->rows[row].cells[col] ? table->rows[row].cells[col] : "");
+            int width = tform_ui_text_width(table->rows[row].cells[col] ? table->rows[row].cells[col] : "");
             if (width > widths[col]) {
                 widths[col] = width;
             }
@@ -1177,19 +1177,19 @@ static int aligned_text_x(int base_x, int width, int text_width, TFormLabelAlign
 static int text_color_pair(TFormTextColor color) {
     switch (color) {
         case TFORM_TEXT_COLOR_WHITE:
-            return GHOSTCODE_PAIR_NORMAL;
+            return TFORM_PAIR_NORMAL;
         case TFORM_TEXT_COLOR_CYAN:
-            return GHOSTCODE_PAIR_SYNTAX_KEYWORD;
+            return TFORM_PAIR_SYNTAX_KEYWORD;
         case TFORM_TEXT_COLOR_YELLOW:
-            return GHOSTCODE_PAIR_SYNTAX_TYPE;
+            return TFORM_PAIR_SYNTAX_TYPE;
         case TFORM_TEXT_COLOR_GREEN:
-            return GHOSTCODE_PAIR_SYNTAX_STRING;
+            return TFORM_PAIR_SYNTAX_STRING;
         case TFORM_TEXT_COLOR_BLUE:
-            return GHOSTCODE_PAIR_SYNTAX_COMMENT;
+            return TFORM_PAIR_SYNTAX_COMMENT;
         case TFORM_TEXT_COLOR_MAGENTA:
-            return GHOSTCODE_PAIR_SYNTAX_NUMBER;
+            return TFORM_PAIR_SYNTAX_NUMBER;
         case TFORM_TEXT_COLOR_RED:
-            return GHOSTCODE_PAIR_GUTTER_MARKER;
+            return TFORM_PAIR_GUTTER_MARKER;
         case TFORM_TEXT_COLOR_DEFAULT:
         default:
             return 0;
@@ -1197,7 +1197,7 @@ static int text_color_pair(TFormTextColor color) {
 }
 
 static int label_default_attr(void) {
-    return has_colors() ? COLOR_PAIR(GHOSTCODE_PAIR_SYNTAX_KEYWORD) : A_NORMAL;
+    return has_colors() ? COLOR_PAIR(TFORM_PAIR_SYNTAX_KEYWORD) : A_NORMAL;
 }
 
 static int text_attr(const TFormTextStyle *style, int default_attr) {
@@ -1273,16 +1273,16 @@ static void draw_field(
     TFormTextStyle border_style;
     tform_text_style_init(&border_style);
     border_style.color = field_color;
-    int border_attr = text_attr(&border_style, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+    int border_attr = text_attr(&border_style, tform_color_pair(TFORM_PAIR_NORMAL));
     if (selected) {
-        border_attr = has_colors() ? COLOR_PAIR(GHOSTCODE_PAIR_FORM_BORDER_SELECTED) | A_BOLD : A_BOLD;
+        border_attr = has_colors() ? COLOR_PAIR(TFORM_PAIR_FORM_BORDER_SELECTED) | A_BOLD : A_BOLD;
     }
     int label_attr = text_attr(label, label_default_attr());
     if (inputting) {
         label_attr |= A_BOLD;
     }
     const char *label_value = label && label->value ? label->value : "";
-    int label_width = ghostcode_ui_text_width(label_value);
+    int label_width = tform_ui_text_width(label_value);
     if (label_width > width) {
         label_width = width;
     }
@@ -1290,7 +1290,7 @@ static void draw_field(
     if (y >= clip_top && y < clip_bottom) {
         wattron(win, label_attr);
         wmove(win, y, label_x);
-        ghostcode_ui_text_addstr_width(win, label_value, label_width);
+        tform_ui_text_addstr_width(win, label_value, label_width);
         wattroff(win, label_attr);
     }
 
@@ -1428,14 +1428,14 @@ static void draw_list_items(
         if (item_index < list->count) {
             const char *item = list->items[item_index] ? list->items[item_index] : "";
             const TFormTextStyle *style = item_index < field->list_style_capacity ? &field->list_styles[item_index] : NULL;
-            int item_attr = text_attr(style, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+            int item_attr = text_attr(style, tform_color_pair(TFORM_PAIR_NORMAL));
             mvwaddch(win, draw_y, draw_x, '-');
             if (inner_width > 1) {
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
             }
             if (inner_width > 2) {
                 int content_width = inner_width - 2;
-                int item_width = ghostcode_ui_text_width(item);
+                int item_width = tform_ui_text_width(item);
                 if (item_width > content_width) {
                     item_width = content_width;
                 }
@@ -1448,7 +1448,7 @@ static void draw_list_items(
                 );
                 wattron(win, item_attr);
                 wmove(win, draw_y, item_x);
-                ghostcode_ui_text_addstr_width(win, item, item_width);
+                tform_ui_text_addstr_width(win, item, item_width);
                 wattroff(win, item_attr);
             }
             if (inputting && active && inner_width > 2) {
@@ -1464,7 +1464,7 @@ static void draw_list_items(
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
             }
             if (inner_width > 2) {
-                ghostcode_ui_text_addstr_width(win, "(empty)", inner_width - 2);
+                tform_ui_text_addstr_width(win, "(empty)", inner_width - 2);
             }
         }
         if (reverse_row) {
@@ -1516,12 +1516,12 @@ static void draw_checkbox_items(
         }
         if (item_index < field->checkbox_count) {
             const char *label = field->checkbox_options[item_index].value ? field->checkbox_options[item_index].value : "";
-            int option_attr = text_attr(&field->checkbox_options[item_index], ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+            int option_attr = text_attr(&field->checkbox_options[item_index], tform_color_pair(TFORM_PAIR_NORMAL));
             mvwaddch(win, draw_y, draw_x, '[');
             if (field->checkbox_checked[item_index]) {
                 wattron(win, A_BOLD);
                 wmove(win, draw_y, draw_x + 1);
-                ghostcode_ui_text_addstr_width(win, checkbox_tick_mark(field->checkbox_tick), 1);
+                tform_ui_text_addstr_width(win, checkbox_tick_mark(field->checkbox_tick), 1);
                 wattroff(win, A_BOLD);
             } else {
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
@@ -1531,7 +1531,7 @@ static void draw_checkbox_items(
                 mvwaddch(win, draw_y, draw_x + 3, ' ');
                 wattron(win, option_attr);
                 int content_width = inner_width - 4;
-                int label_width = ghostcode_ui_text_width(label);
+                int label_width = tform_ui_text_width(label);
                 if (label_width > content_width) {
                     label_width = content_width;
                 }
@@ -1543,11 +1543,11 @@ static void draw_checkbox_items(
                     0
                 );
                 wmove(win, draw_y, label_x);
-                ghostcode_ui_text_addstr_width(win, label, label_width);
+                tform_ui_text_addstr_width(win, label, label_width);
                 wattroff(win, option_attr);
             }
         } else if (field->checkbox_count == 0 && row == 0) {
-            ghostcode_ui_text_addstr_width(win, "(empty)", inner_width);
+            tform_ui_text_addstr_width(win, "(empty)", inner_width);
         }
         if (active) {
             wattroff(win, A_REVERSE);
@@ -1567,7 +1567,7 @@ static void draw_separator(
     TFormTextStyle line_style;
     tform_text_style_init(&line_style);
     line_style.color = line_color;
-    int line_attr = text_attr(&line_style, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER));
+    int line_attr = text_attr(&line_style, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
     int label_attr = text_attr(label, label_default_attr());
     int line_y = y + 1;
     if (line_y < clip_top || line_y >= clip_bottom) {
@@ -1578,7 +1578,7 @@ static void draw_separator(
     wattroff(win, line_attr);
     const char *label_value = label && label->value ? label->value : "";
     if (*label_value && width > 8) {
-        int label_width = ghostcode_ui_text_width(label_value);
+        int label_width = tform_ui_text_width(label_value);
         int max_label_width = width - 6;
         if (label_width > max_label_width) {
             label_width = max_label_width;
@@ -1588,7 +1588,7 @@ static void draw_separator(
             wattron(win, label_attr);
             mvwaddch(win, line_y, start - 1, ' ');
             wmove(win, line_y, start);
-            int written = ghostcode_ui_text_addstr_width(win, label_value, label_width);
+            int written = tform_ui_text_addstr_width(win, label_value, label_width);
             int end = start + written;
             if (end < width) {
                 mvwaddch(win, line_y, end, ' ');
@@ -1631,14 +1631,14 @@ static void draw_text_section(
             }
             int draw_y = y + row;
             if (draw_y >= clip_top && draw_y < clip_bottom) {
-                int line_width = ghostcode_ui_text_width_n(line + line_offset, draw_bytes);
+                int line_width = tform_ui_text_width_n(line + line_offset, draw_bytes);
                 if (line_width > width) {
                     line_width = width;
                 }
                 int line_x = aligned_text_x(x, width, line_width, text->align, 0);
                 wattron(win, attr);
                 wmove(win, draw_y, line_x);
-                ghostcode_ui_text_addnstr_width(win, line + line_offset, draw_bytes, line_width);
+                tform_ui_text_addnstr_width(win, line + line_offset, draw_bytes, line_width);
                 wattroff(win, attr);
             }
             row++;
@@ -1780,7 +1780,7 @@ static void draw_table_title(
         table_width <= 0 || y < clip_top || y >= clip_bottom) {
         return;
     }
-    int title_width = ghostcode_ui_text_width(table->title.value);
+    int title_width = tform_ui_text_width(table->title.value);
     if (title_width > table_width) {
         title_width = table_width;
     }
@@ -1788,7 +1788,7 @@ static void draw_table_title(
     int attr = text_attr(&table->title, label_default_attr());
     wattron(win, attr);
     wmove(win, y, title_x);
-    ghostcode_ui_text_addstr_width(win, table->title.value, title_width);
+    tform_ui_text_addstr_width(win, table->title.value, title_width);
     wattroff(win, attr);
 }
 
@@ -1853,7 +1853,7 @@ static void draw_table_cells(
             waddch(win, ' ');
             wattron(win, cell_attr);
             const char *text = cells[col] ? cells[col] : "";
-            int visible = ghostcode_ui_text_addstr_width(win, text, widths[col]);
+            int visible = tform_ui_text_addstr_width(win, text, widths[col]);
             wattroff(win, cell_attr);
             for (int pad = visible; pad < widths[col] + 1; pad++) {
                 waddch(win, ' ');
@@ -1873,7 +1873,7 @@ static void draw_table_cells(
             }
             wattron(win, cell_attr);
             const char *text = cells[col] ? cells[col] : "";
-            int visible = ghostcode_ui_text_addstr_width(win, text, widths[col]);
+            int visible = tform_ui_text_addstr_width(win, text, widths[col]);
             wattroff(win, cell_attr);
             used += visible;
             for (int pad = visible; pad < widths[col]; pad++) {
@@ -1929,7 +1929,7 @@ static void draw_table_separator_row(
     if (!*text || content_width <= 0) {
         return;
     }
-    int text_width = ghostcode_ui_text_width(text);
+    int text_width = tform_ui_text_width(text);
     if (text_width > content_width) {
         text_width = content_width;
     }
@@ -1937,7 +1937,7 @@ static void draw_table_separator_row(
     int attr = text_attr(label, row_attr);
     wattron(win, attr);
     wmove(win, y, text_x);
-    ghostcode_ui_text_addstr_width(win, text, text_width);
+    tform_ui_text_addstr_width(win, text, text_width);
     wattroff(win, attr);
 }
 
@@ -1967,9 +1967,9 @@ static void draw_table(
     TFormTextStyle border_style;
     tform_text_style_init(&border_style);
     border_style.color = table->color;
-    int border_attr = text_attr(&border_style, ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER));
-    int header_attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL) | A_BOLD;
-    int row_attr = ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL);
+    int border_attr = text_attr(&border_style, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
+    int header_attr = tform_color_pair(TFORM_PAIR_NORMAL) | A_BOLD;
+    int row_attr = tform_color_pair(TFORM_PAIR_NORMAL);
     int row = y + table->padding;
     if (table->title.value && *table->title.value) {
         draw_table_title(win, row++, draw_x, table_width, table, clip_top, clip_bottom);
@@ -2073,7 +2073,7 @@ static void draw_section_box(WINDOW *win, int y, int x, int width, int height, i
     if (!win || width < 2 || height < 2) {
         return;
     }
-    int attr = ghostcode_color_pair(GHOSTCODE_PAIR_FOOTER_BORDER);
+    int attr = tform_color_pair(TFORM_PAIR_FOOTER_BORDER);
     wattron(win, attr);
     if (y >= clip_top && y < clip_bottom) {
         mvwaddch(win, y, x, ACS_ULCORNER);
@@ -2127,7 +2127,7 @@ static void draw_braille_canvas(
     if (!win || !canvas || !canvas->cells || width <= 0) return;
     tform_text_style_init(&canvas_style);
     canvas_style.color = color;
-    fallback_attr = text_attr(&canvas_style, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
+    fallback_attr = text_attr(&canvas_style, tform_color_pair(TFORM_PAIR_NORMAL));
     fallback_attrs = (attr_t)(fallback_attr & ~A_COLOR);
     fallback_pair = (short)PAIR_NUMBER(fallback_attr);
     wattr_get(win, &saved_attrs, &saved_pair, NULL);
@@ -2138,7 +2138,7 @@ static void draw_braille_canvas(
         int columns = canvas->char_width < width ? canvas->char_width : width;
         for (int canvas_x = 0; canvas_x < columns; canvas_x++) {
             char glyph[4];
-            short image_pair = ghostcode_image_color_pair(
+            short image_pair = tform_image_color_pair(
                 braille_canvas_cell_color(canvas, canvas_x, canvas_y)
             );
             wattr_set(
@@ -2300,15 +2300,15 @@ static void draw_selection_pointer(WINDOW *win, int field_y, int field_height, i
         pointer_y = body_h - 1;
     }
     int pointer_x = form_x >= 2 ? form_x - 2 : 0;
-    int attr = has_colors() ? COLOR_PAIR(GHOSTCODE_PAIR_GUTTER_MARKER) | A_BOLD : A_BOLD;
+    int attr = has_colors() ? COLOR_PAIR(TFORM_PAIR_GUTTER_MARKER) | A_BOLD : A_BOLD;
     wattron(win, attr);
     mvwaddch(win, pointer_y, pointer_x, '>');
     wattroff(win, attr);
 }
 
 static void draw_form(
-    GhostcodePmNode *main_panel,
-    GhostcodePmNode *footer_panel,
+    TFormPmNode *main_panel,
+    TFormPmNode *footer_panel,
     TFormObject *form,
     int selected,
     TFormEditMode edit_mode,
@@ -2324,15 +2324,15 @@ static void draw_form(
     if (footer_h < 1) {
         footer_h = 1;
     }
-    ghostcode_pm_resize(main_panel, body_h, COLS);
-    ghostcode_pm_resize(footer_panel, footer_h, COLS);
-    ghostcode_pm_move(footer_panel, body_h, 0);
+    tform_pm_resize(main_panel, body_h, COLS);
+    tform_pm_resize(footer_panel, footer_h, COLS);
+    tform_pm_move(footer_panel, body_h, 0);
     werase(main_panel->win);
-    wbkgd(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_NORMAL));
-    wattron(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER));
+    wbkgd(main_panel->win, tform_color_pair(TFORM_PAIR_NORMAL));
+    wattron(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
     mvwhline(main_panel->win, 0, 0, ' ', COLS);
     mvwprintw(main_panel->win, 0, 1, "%.*s", COLS - 2, form->title ? form->title : "TForm");
-    wattroff(main_panel->win, ghostcode_color_pair(GHOSTCODE_PAIR_HEADER));
+    wattroff(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
 
     int form_width = form_width_from_cols();
     int form_x = (COLS - form_width) / 2;
@@ -2487,40 +2487,40 @@ static void draw_form(
     if (edit_mode == TFORM_EDIT_TEXT) {
         TFormField *field = &form->fields[selected];
         if (field->wrap_text) {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Arrows] Move  [Enter] Done  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Clear");
+            tform_ui_draw_footer(footer_panel->win, "[Arrows] Move  [Enter] Done  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Clear");
         } else {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Left/Right] Move  [Enter] Done  [Ctrl+V] Paste  [Esc] Clear");
+            tform_ui_draw_footer(footer_panel->win, "[Left/Right] Move  [Enter] Done  [Ctrl+V] Paste  [Esc] Clear");
         }
     } else if (edit_mode == TFORM_EDIT_SCROLL) {
-        ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Value  [Enter] Done  [Esc] Done  [Ctrl+S] Save");
+        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Value  [Enter] Done  [Esc] Done  [Ctrl+S] Save");
     } else if (edit_mode == TFORM_EDIT_LIST) {
         TFormField *field = &form->fields[selected];
         if (list_inputting) {
-            ghostcode_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
+            tform_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
         } else if (field->has_calendar) {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
+            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_clock) {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Time  [E] Replace  [D] Delete  [Esc] Exit");
+            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Time  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_file_picker) {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
+            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
         } else {
-            ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Add  [E] Edit  [D] Delete  [Esc] Exit");
+            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Add  [E] Edit  [D] Delete  [Esc] Exit");
         }
     } else if (edit_mode == TFORM_EDIT_CHECKBOX) {
-        ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
+        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
     } else if (!selection_active) {
-        ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
+        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
     } else {
-        ghostcode_ui_draw_footer(footer_panel->win, "[Up/Down] Field  [Enter] Edit  [I] Info  [Ctrl+S] Save  [Q] Exit");
+        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Field  [Enter] Edit  [I] Info  [Ctrl+S] Save  [Q] Exit");
     }
-    ghostcode_pm_wnoutrefresh(main_panel);
-    ghostcode_pm_wnoutrefresh(footer_panel);
-    ghostcode_pm_update();
+    tform_pm_wnoutrefresh(main_panel);
+    tform_pm_wnoutrefresh(footer_panel);
+    tform_pm_update();
 }
 
 int tform_run_form(TFormObject *form) {
     setlocale(LC_ALL, "");
-    ghostcode_disable_flow_control();
+    tform_disable_flow_control();
     setenv("TERM", "xterm-256color", 0);
     initscr();
     cbreak();
@@ -2528,18 +2528,18 @@ int tform_run_form(TFormObject *form) {
     keypad(stdscr, TRUE);
     set_escdelay(25);
     curs_set(0);
-    ghostcode_init_editor_theme();
-    ghostcode_pm_init();
+    tform_init_editor_theme();
+    tform_pm_init();
 
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) {
         footer_h = 1;
     }
-    GhostcodePmNode *main_panel = ghostcode_pm_add(0, 0, body_h, COLS, GHOSTCODE_PM_LAYER_MAIN, GHOSTCODE_PM_LAYER_MAIN);
-    GhostcodePmNode *footer_panel = ghostcode_pm_add(body_h, 0, footer_h, COLS, GHOSTCODE_PM_LAYER_FOOTER, GHOSTCODE_PM_LAYER_FOOTER);
+    TFormPmNode *main_panel = tform_pm_add(0, 0, body_h, COLS, TFORM_PM_LAYER_MAIN, TFORM_PM_LAYER_MAIN);
+    TFormPmNode *footer_panel = tform_pm_add(body_h, 0, footer_h, COLS, TFORM_PM_LAYER_FOOTER, TFORM_PM_LAYER_FOOTER);
     if (!main_panel || !footer_panel) {
-        ghostcode_pm_teardown();
+        tform_pm_teardown();
         endwin();
         return -1;
     }
@@ -2910,14 +2910,14 @@ int tform_run_form(TFormObject *form) {
                 edit_field(&form->fields[selected]);
             }
         } else if ((ch == 'i' || ch == 'I') && field_is_selectable(&form->fields[selected])) {
-            ghostcode_readonly_dialog(form->fields[selected].label.value, form->fields[selected].description);
+            tform_readonly_dialog(form->fields[selected].label.value, form->fields[selected].description);
         } else if (ch == CTRL_S) {
             result = 1;
             break;
         }
     }
 
-    ghostcode_pm_teardown();
+    tform_pm_teardown();
     endwin();
     return result;
 }

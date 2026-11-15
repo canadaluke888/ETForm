@@ -3,7 +3,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-void ghostcode_disable_flow_control(void) {
+void tform_disable_flow_control(void) {
     struct termios settings;
 
     if (tcgetattr(STDIN_FILENO, &settings) != 0) {

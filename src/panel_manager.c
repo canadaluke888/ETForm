@@ -2,15 +2,15 @@
 
 #include <stdlib.h>
 
-#define GHOSTCODE_PM_MAX 64
+#define TFORM_PM_MAX 64
 
-static GhostcodePmNode *GHOSTCODE_PM_LIST[GHOSTCODE_PM_MAX];
-static int GHOSTCODE_PM_COUNT = 0;
-static int GHOSTCODE_PM_NEXT_ORDER = 1;
+static TFormPmNode *TFORM_PM_LIST[TFORM_PM_MAX];
+static int TFORM_PM_COUNT = 0;
+static int TFORM_PM_NEXT_ORDER = 1;
 
 static int compare_nodes(const void *left, const void *right) {
-    const GhostcodePmNode *a = *(GhostcodePmNode * const *)left;
-    const GhostcodePmNode *b = *(GhostcodePmNode * const *)right;
+    const TFormPmNode *a = *(TFormPmNode * const *)left;
+    const TFormPmNode *b = *(TFormPmNode * const *)right;
     if (a->z_index < b->z_index) {
         return -1;
     }
@@ -27,32 +27,32 @@ static int compare_nodes(const void *left, const void *right) {
 }
 
 static void restack(void) {
-    qsort(GHOSTCODE_PM_LIST, (size_t)GHOSTCODE_PM_COUNT, sizeof(GhostcodePmNode *), compare_nodes);
-    for (int i = 0; i < GHOSTCODE_PM_COUNT; i++) {
-        top_panel(GHOSTCODE_PM_LIST[i]->panel);
+    qsort(TFORM_PM_LIST, (size_t)TFORM_PM_COUNT, sizeof(TFormPmNode *), compare_nodes);
+    for (int i = 0; i < TFORM_PM_COUNT; i++) {
+        top_panel(TFORM_PM_LIST[i]->panel);
     }
 }
 
-void ghostcode_pm_init(void) {
-    GHOSTCODE_PM_COUNT = 0;
-    GHOSTCODE_PM_NEXT_ORDER = 1;
+void tform_pm_init(void) {
+    TFORM_PM_COUNT = 0;
+    TFORM_PM_NEXT_ORDER = 1;
 }
 
-void ghostcode_pm_teardown(void) {
-    for (int i = 0; i < GHOSTCODE_PM_COUNT; i++) {
-        if (!GHOSTCODE_PM_LIST[i]) {
+void tform_pm_teardown(void) {
+    for (int i = 0; i < TFORM_PM_COUNT; i++) {
+        if (!TFORM_PM_LIST[i]) {
             continue;
         }
-        del_panel(GHOSTCODE_PM_LIST[i]->panel);
-        delwin(GHOSTCODE_PM_LIST[i]->win);
-        free(GHOSTCODE_PM_LIST[i]);
-        GHOSTCODE_PM_LIST[i] = NULL;
+        del_panel(TFORM_PM_LIST[i]->panel);
+        delwin(TFORM_PM_LIST[i]->win);
+        free(TFORM_PM_LIST[i]);
+        TFORM_PM_LIST[i] = NULL;
     }
-    GHOSTCODE_PM_COUNT = 0;
+    TFORM_PM_COUNT = 0;
 }
 
-GhostcodePmNode *ghostcode_pm_add(int y, int x, int h, int w, int z_index, GhostcodePmLayerRole role) {
-    if (GHOSTCODE_PM_COUNT >= GHOSTCODE_PM_MAX || h < 1 || w < 1) {
+TFormPmNode *tform_pm_add(int y, int x, int h, int w, int z_index, TFormPmLayerRole role) {
+    if (TFORM_PM_COUNT >= TFORM_PM_MAX || h < 1 || w < 1) {
         return NULL;
     }
 
@@ -66,7 +66,7 @@ GhostcodePmNode *ghostcode_pm_add(int y, int x, int h, int w, int z_index, Ghost
         return NULL;
     }
 
-    GhostcodePmNode *node = calloc(1, sizeof(GhostcodePmNode));
+    TFormPmNode *node = calloc(1, sizeof(TFormPmNode));
     if (!node) {
         del_panel(panel);
         delwin(win);
@@ -81,30 +81,30 @@ GhostcodePmNode *ghostcode_pm_add(int y, int x, int h, int w, int z_index, Ghost
     node->x = x;
     node->h = h;
     node->w = w;
-    node->order = GHOSTCODE_PM_NEXT_ORDER++;
+    node->order = TFORM_PM_NEXT_ORDER++;
     node->visible = true;
-    GHOSTCODE_PM_LIST[GHOSTCODE_PM_COUNT++] = node;
+    TFORM_PM_LIST[TFORM_PM_COUNT++] = node;
     restack();
     return node;
 }
 
-void ghostcode_pm_remove(GhostcodePmNode *node) {
+void tform_pm_remove(TFormPmNode *node) {
     if (!node) {
         return;
     }
 
     int index = -1;
-    for (int i = 0; i < GHOSTCODE_PM_COUNT; i++) {
-        if (GHOSTCODE_PM_LIST[i] == node) {
+    for (int i = 0; i < TFORM_PM_COUNT; i++) {
+        if (TFORM_PM_LIST[i] == node) {
             index = i;
             break;
         }
     }
     if (index >= 0) {
-        for (int i = index; i < GHOSTCODE_PM_COUNT - 1; i++) {
-            GHOSTCODE_PM_LIST[i] = GHOSTCODE_PM_LIST[i + 1];
+        for (int i = index; i < TFORM_PM_COUNT - 1; i++) {
+            TFORM_PM_LIST[i] = TFORM_PM_LIST[i + 1];
         }
-        GHOSTCODE_PM_COUNT--;
+        TFORM_PM_COUNT--;
     }
 
     del_panel(node->panel);
@@ -113,7 +113,7 @@ void ghostcode_pm_remove(GhostcodePmNode *node) {
     restack();
 }
 
-void ghostcode_pm_show(GhostcodePmNode *node) {
+void tform_pm_show(TFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -121,7 +121,7 @@ void ghostcode_pm_show(GhostcodePmNode *node) {
     node->visible = true;
 }
 
-void ghostcode_pm_hide(GhostcodePmNode *node) {
+void tform_pm_hide(TFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -129,7 +129,7 @@ void ghostcode_pm_hide(GhostcodePmNode *node) {
     node->visible = false;
 }
 
-void ghostcode_pm_move(GhostcodePmNode *node, int y, int x) {
+void tform_pm_move(TFormPmNode *node, int y, int x) {
     if (!node) {
         return;
     }
@@ -138,7 +138,7 @@ void ghostcode_pm_move(GhostcodePmNode *node, int y, int x) {
     move_panel(node->panel, y, x);
 }
 
-void ghostcode_pm_resize(GhostcodePmNode *node, int h, int w) {
+void tform_pm_resize(TFormPmNode *node, int h, int w) {
     if (!node || h < 1 || w < 1) {
         return;
     }
@@ -148,20 +148,20 @@ void ghostcode_pm_resize(GhostcodePmNode *node, int h, int w) {
     replace_panel(node->panel, node->win);
 }
 
-void ghostcode_pm_wnoutrefresh(GhostcodePmNode *node) {
+void tform_pm_wnoutrefresh(TFormPmNode *node) {
     if (!node) {
         return;
     }
     wnoutrefresh(node->win);
 }
 
-void ghostcode_pm_update(void) {
+void tform_pm_update(void) {
     restack();
     update_panels();
     doupdate();
 }
 
-void ghostcode_pm_center(GhostcodePmNode *node) {
+void tform_pm_center(TFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -173,9 +173,9 @@ void ghostcode_pm_center(GhostcodePmNode *node) {
     if (x < 0) {
         x = 0;
     }
-    ghostcode_pm_move(node, y, x);
+    tform_pm_move(node, y, x);
 }
 
-void ghostcode_pm_on_resize(void) {
+void tform_pm_on_resize(void) {
     restack();
 }
