@@ -1,8 +1,8 @@
-#ifndef TFORM_DOC_RUNTIME_H
-#define TFORM_DOC_RUNTIME_H
+#ifndef ETFORM_DOC_RUNTIME_H
+#define ETFORM_DOC_RUNTIME_H
 
 #include "doc_object.h"
 
-int tform_run_doc(TFormDocObject *doc);
+int etform_run_doc(ETFormDocObject *doc);
 
 #endif

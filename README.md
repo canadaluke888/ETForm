@@ -1,12 +1,12 @@
-# TForm
+# ETForm
 
-TForm is a Python framework for building native terminal forms and read-only
+ETForm is a Python framework for building native terminal forms and read-only
 documents with an ncurses interface. Forms collect structured input. Documents
 render hierarchical manuals, project notes, and other ordered terminal content.
 
 The public API is intentionally small: create a `Form` to collect values or a
 `Doc` to render read-only content, add items in display order, then call `run()`.
-TForm handles terminal rendering, navigation, scrolling, and reusable styled
+ETForm handles terminal rendering, navigation, scrolling, and reusable styled
 display objects.
 
 ## Features
@@ -24,19 +24,29 @@ display objects.
   reusable display objects, margins, boxes, and scrolling.
 - Typed package metadata through `py.typed` and `.pyi` stubs.
 
-## Requirements
+## Install
 
-TForm builds a native extension and links against wide-character ncurses and the
-panel library.
+The distribution and Python import are both named `etform`. Once published to
+PyPI, install it with:
+
+```bash
+python3 -m pip install etform
+```
+
+The planned prebuilt wheels target CPython 3.11-3.14 on glibc-based Linux
+x86-64 (manylinux_2_28, requiring glibc 2.28 or newer). Other Linux systems may
+need to build from source. Windows is not
+supported; macOS builds have not been tested. Python 3.11 or newer is required.
+
+To build from source, ETForm needs a C compiler, Python development headers,
+wide-character ncurses, and the panel library.
 
 On Debian or Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install python3-dev build-essential libncursesw5-dev libpanel-dev
+sudo apt install python3-dev build-essential libncurses-dev
 ```
-
-## Install
 
 From a source checkout:
 
@@ -50,10 +60,28 @@ For editable development:
 python3 -m pip install -e .
 ```
 
+Clipboard paste uses `xclip` when available. Running the interface requires an
+interactive terminal with a suitable terminfo database.
+
+## Publishing
+
+The package has not been published by this repository's workflow until a
+maintainer configures PyPI and publishes a release. Create the `etform` project
+or a pending trusted publisher on PyPI for repository `canadaluke888/TForm`,
+workflow `package.yml`, and environment `pypi`. Review the project's licensing
+and the licenses of bundled native dependencies before distributing it.
+
+Update `VERSION`, then create and publish a GitHub release tagged with `v`
+followed by that version (for example, `v0.17.0`). The packaging workflow builds
+the source distribution and Linux wheels, tests the wheels, and publishes them
+through PyPI Trusted Publishing. Each PyPI version can only be uploaded once.
+The workflow also builds downloadable artifacts on pushes, pull requests, and
+manual runs without publishing them. PyPI names are claimed on first upload.
+
 ## Quick Start
 
 ```python
-from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
+from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 
 
 form = Form(title="Project Setup")
@@ -64,7 +92,7 @@ commands = Table(
 commands.add_column("Command")
 commands.add_column("Default")
 commands.add_row("Build", "python3 setup.py build_ext --inplace")
-commands.add_row("Demo", "python3 examples/demo.py")
+commands.add_row("Demo", "python3 examples/form_demo.py")
 
 form.add_section(
     Text("Create a project configuration.", color="cyan", bold=True),
@@ -130,7 +158,7 @@ else:
 Run the included demo from the repository root:
 
 ```bash
-python3 examples/demo.py
+python3 examples/form_demo.py
 ```
 
 Run the separate document demo with:
@@ -141,10 +169,10 @@ python3 examples/doc_demo.py
 
 ## Core API
 
-Import the framework objects from `tform`:
+Import the framework objects from `etform`:
 
 ```python
-from tform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Group, Image, OrderedList, Paragraph, Table, Text, UnorderedList
+from etform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Group, Image, OrderedList, Paragraph, Table, Text, UnorderedList
 ```
 
 ### `Doc`
@@ -155,7 +183,7 @@ scrolling, and Home/End navigation. Margins reduce the document viewport without
 introducing coordinate placement.
 
 ```python
-from tform import CodeBlock, Doc, Group, OrderedList, Paragraph, Text, UnorderedList
+from etform import CodeBlock, Doc, Group, OrderedList, Paragraph, Text, UnorderedList
 
 doc = Doc(
     title="Project Notes",
@@ -167,7 +195,7 @@ doc = Doc(
 doc.add(
     Text("Project Notes", align="center", bold=True, color="cyan"),
     Paragraph(
-        "TForm documents support ",
+        "ETForm documents support ",
         Text("inline styled text", color="yellow", bold=True),
         " without a markup parser.",
     ),
@@ -177,7 +205,7 @@ doc.add(
         OrderedList("Nested ordered item"),
     ),
     CodeBlock(
-        code="print('hello from TForm docs')",
+        code="print('hello from ETForm docs')",
         lang="python",
     ),
 )
@@ -349,7 +377,7 @@ table.add_column("Command")
 table.add_column("Default")
 table.add_row("Build", "python3 setup.py build_ext --inplace")
 table.add_separator_row(Text("Validation", color="yellow", dim=True))
-table.add_row("Demo", "python3 examples/demo.py")
+table.add_row("Demo", "python3 examples/form_demo.py")
 
 form.add_section(Text("Developer Settings", color="cyan", bold=True), table, boxed=True)
 ```
@@ -518,7 +546,7 @@ File picker controls:
 The bundled developer settings demo exercises the major field types:
 
 ```bash
-python3 examples/demo.py
+python3 examples/form_demo.py
 ```
 
 When saved, it prints the returned form dictionary as JSON.

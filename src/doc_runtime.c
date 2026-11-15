@@ -23,33 +23,33 @@ static int code_line_count(const char *code) {
     return lines;
 }
 
-static int doc_node_height(TFormDocNode *node, int width, int level);
+static int doc_node_height(ETFormDocNode *node, int width, int level);
 
-static int doc_text_color_pair(TFormTextColor color) {
+static int doc_text_color_pair(ETFormTextColor color) {
     switch (color) {
-        case TFORM_TEXT_COLOR_WHITE:
-            return TFORM_PAIR_NORMAL;
-        case TFORM_TEXT_COLOR_CYAN:
-            return TFORM_PAIR_SYNTAX_KEYWORD;
-        case TFORM_TEXT_COLOR_YELLOW:
-            return TFORM_PAIR_SYNTAX_TYPE;
-        case TFORM_TEXT_COLOR_GREEN:
-            return TFORM_PAIR_SYNTAX_STRING;
-        case TFORM_TEXT_COLOR_BLUE:
-            return TFORM_PAIR_SYNTAX_COMMENT;
-        case TFORM_TEXT_COLOR_MAGENTA:
-            return TFORM_PAIR_SYNTAX_NUMBER;
-        case TFORM_TEXT_COLOR_RED:
-            return TFORM_PAIR_GUTTER_MARKER;
-        case TFORM_TEXT_COLOR_DEFAULT:
+        case ETFORM_TEXT_COLOR_WHITE:
+            return ETFORM_PAIR_NORMAL;
+        case ETFORM_TEXT_COLOR_CYAN:
+            return ETFORM_PAIR_SYNTAX_KEYWORD;
+        case ETFORM_TEXT_COLOR_YELLOW:
+            return ETFORM_PAIR_SYNTAX_TYPE;
+        case ETFORM_TEXT_COLOR_GREEN:
+            return ETFORM_PAIR_SYNTAX_STRING;
+        case ETFORM_TEXT_COLOR_BLUE:
+            return ETFORM_PAIR_SYNTAX_COMMENT;
+        case ETFORM_TEXT_COLOR_MAGENTA:
+            return ETFORM_PAIR_SYNTAX_NUMBER;
+        case ETFORM_TEXT_COLOR_RED:
+            return ETFORM_PAIR_GUTTER_MARKER;
+        case ETFORM_TEXT_COLOR_DEFAULT:
         default:
-            return TFORM_PAIR_NORMAL;
+            return ETFORM_PAIR_NORMAL;
     }
 }
 
-static int doc_text_attr(const TFormTextStyle *style) {
-    int attr = tform_color_pair(TFORM_PAIR_NORMAL);
-    if (style && style->color != TFORM_TEXT_COLOR_DEFAULT && has_colors()) {
+static int doc_text_attr(const ETFormTextStyle *style) {
+    int attr = etform_color_pair(ETFORM_PAIR_NORMAL);
+    if (style && style->color != ETFORM_TEXT_COLOR_DEFAULT && has_colors()) {
         attr = COLOR_PAIR(doc_text_color_pair(style->color));
     }
     if (style && style->bold) attr |= A_BOLD;
@@ -75,7 +75,7 @@ static size_t next_char_bytes(const char *text, size_t offset, int *display_widt
         if (display_width) *display_width = 1;
         return 1;
     }
-    int width = tform_ui_text_width_n(text + offset, consumed);
+    int width = etform_ui_text_width_n(text + offset, consumed);
     if (display_width) *display_width = width > 0 ? width : 1;
     return consumed;
 }
@@ -97,7 +97,7 @@ static size_t next_word_bytes(const char *text, size_t offset) {
 }
 
 static int paragraph_height_prefixed(
-    TFormParagraphObject *paragraph,
+    ETFormParagraphObject *paragraph,
     int width,
     int first_prefix_width,
     int continuation_prefix_width
@@ -106,8 +106,8 @@ static int paragraph_height_prefixed(
     int rows = 1;
     int col = first_prefix_width < width ? first_prefix_width : 0;
     for (Py_ssize_t i = 0; i < paragraph->run_count; i++) {
-        TFormTextStyle style;
-        if (tform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
+        ETFormTextStyle style;
+        if (etform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
             PyErr_Clear();
             continue;
         }
@@ -137,7 +137,7 @@ static int paragraph_height_prefixed(
                 continue;
             }
             size_t bytes = next_word_bytes(text, offset);
-            int token_width = tform_ui_text_width_n(text + offset, bytes);
+            int token_width = etform_ui_text_width_n(text + offset, bytes);
             if (col > continuation_prefix_width && col + token_width > width) {
                 rows++;
                 col = continuation_prefix_width < width ? continuation_prefix_width : 0;
@@ -161,12 +161,12 @@ static int paragraph_height_prefixed(
             }
             offset += bytes;
         }
-        tform_text_style_free(&style);
+        etform_text_style_free(&style);
     }
     return rows;
 }
 
-static int paragraph_height(TFormParagraphObject *paragraph, int width) {
+static int paragraph_height(ETFormParagraphObject *paragraph, int width) {
     return paragraph_height_prefixed(paragraph, width, 0, 0);
 }
 
@@ -175,7 +175,7 @@ static void draw_paragraph_prefixed(
     int y,
     int x,
     int width,
-    TFormParagraphObject *paragraph,
+    ETFormParagraphObject *paragraph,
     const char *first_prefix,
     int continuation_prefix_width,
     int clip_top,
@@ -183,17 +183,17 @@ static void draw_paragraph_prefixed(
 ) {
     if (!win || !paragraph || width <= 0) return;
     int row = 0;
-    int first_prefix_width = tform_ui_text_width(first_prefix ? first_prefix : "");
+    int first_prefix_width = etform_ui_text_width(first_prefix ? first_prefix : "");
     int col = first_prefix_width < width ? first_prefix_width : 0;
     if (first_prefix && *first_prefix && y >= clip_top && y < clip_bottom) {
-        wattron(win, tform_color_pair(TFORM_PAIR_NORMAL));
+        wattron(win, etform_color_pair(ETFORM_PAIR_NORMAL));
         wmove(win, y, x);
-        tform_ui_text_addstr_width(win, first_prefix, width);
-        wattroff(win, tform_color_pair(TFORM_PAIR_NORMAL));
+        etform_ui_text_addstr_width(win, first_prefix, width);
+        wattroff(win, etform_color_pair(ETFORM_PAIR_NORMAL));
     }
     for (Py_ssize_t i = 0; i < paragraph->run_count; i++) {
-        TFormTextStyle style;
-        if (tform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
+        ETFormTextStyle style;
+        if (etform_text_style_from_object(paragraph->runs[i].object, 1, &style) < 0) {
             PyErr_Clear();
             continue;
         }
@@ -230,7 +230,7 @@ static void draw_paragraph_prefixed(
                 continue;
             }
             size_t bytes = next_word_bytes(text, offset);
-            int token_width = tform_ui_text_width_n(text + offset, bytes);
+            int token_width = etform_ui_text_width_n(text + offset, bytes);
             if (col > continuation_prefix_width && col + token_width > width) {
                 row++;
                 col = continuation_prefix_width < width ? continuation_prefix_width : 0;
@@ -240,7 +240,7 @@ static void draw_paragraph_prefixed(
                 if (draw_y >= clip_top && draw_y < clip_bottom) {
                     wattron(win, attr);
                     wmove(win, draw_y, x + col);
-                    tform_ui_text_addnstr_width(win, text + offset, bytes, width - col);
+                    etform_ui_text_addnstr_width(win, text + offset, bytes, width - col);
                     wattroff(win, attr);
                 }
                 col += token_width;
@@ -260,7 +260,7 @@ static void draw_paragraph_prefixed(
                 if (draw_y >= clip_top && draw_y < clip_bottom) {
                     wattron(win, attr);
                     wmove(win, draw_y, x + col);
-                    tform_ui_text_addnstr_width(
+                    etform_ui_text_addnstr_width(
                         win, text + offset + token_offset, char_bytes, width - col
                     );
                     wattroff(win, attr);
@@ -270,20 +270,20 @@ static void draw_paragraph_prefixed(
             }
             offset += bytes;
         }
-        tform_text_style_free(&style);
+        etform_text_style_free(&style);
     }
 }
 
-static int doc_list_height(TFormDocListObject *list, int width, int level) {
+static int doc_list_height(ETFormDocListObject *list, int width, int level) {
     if (!list || width <= 0) return 0;
     int height = 0;
     int indent = level * 2;
     if (indent > width - 1) indent = width > 1 ? width - 1 : 0;
     for (Py_ssize_t i = 0; i < list->item_count; i++) {
-        TFormDocListItem *item = &list->items[i];
-        if (item->kind == TFORM_DOC_LIST_ITEM_ORDERED_LIST ||
-            item->kind == TFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
-            height += doc_list_height((TFormDocListObject *)item->object, width, level + 1);
+        ETFormDocListItem *item = &list->items[i];
+        if (item->kind == ETFORM_DOC_LIST_ITEM_ORDERED_LIST ||
+            item->kind == ETFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
+            height += doc_list_height((ETFormDocListObject *)item->object, width, level + 1);
             continue;
         }
         char marker[32];
@@ -292,9 +292,9 @@ static int doc_list_height(TFormDocListObject *list, int width, int level) {
         } else {
             snprintf(marker, sizeof(marker), "%*s• ", indent, "");
         }
-        int prefix_width = tform_ui_text_width(marker);
+        int prefix_width = etform_ui_text_width(marker);
         height += paragraph_height_prefixed(
-            (TFormParagraphObject *)item->object,
+            (ETFormParagraphObject *)item->object,
             width,
             prefix_width,
             prefix_width
@@ -304,7 +304,7 @@ static int doc_list_height(TFormDocListObject *list, int width, int level) {
 }
 
 static int doc_group_height(
-    TFormDocGroupObject *group,
+    ETFormDocGroupObject *group,
     int width,
     int level
 ) {
@@ -322,43 +322,43 @@ static int doc_group_height(
 }
 
 static int static_object_height(PyObject *object, int width) {
-    TFormSectionElement element;
+    ETFormSectionElement element;
     memset(&element, 0, sizeof(element));
-    if (tform_section_element_from_object(&element, object) < 0) {
+    if (etform_section_element_from_object(&element, object) < 0) {
         PyErr_Clear();
         return 0;
     }
-    int height = tform_static_element_height(&element, width);
-    tform_section_element_free(&element);
+    int height = etform_static_element_height(&element, width);
+    etform_section_element_free(&element);
     return height;
 }
 
-static int code_block_height(TFormCodeBlockObject *block) {
+static int code_block_height(ETFormCodeBlockObject *block) {
     if (!block) return 0;
     return code_line_count(block->code) + (block->background ? 2 : 0);
 }
 
-static int doc_node_height(TFormDocNode *node, int width, int level) {
+static int doc_node_height(ETFormDocNode *node, int width, int level) {
     if (!node || width <= 0) return 0;
     switch (node->kind) {
-        case TFORM_DOC_NODE_PARAGRAPH:
-            return paragraph_height((TFormParagraphObject *)node->object, width);
-        case TFORM_DOC_NODE_GROUP:
-            return doc_group_height((TFormDocGroupObject *)node->object, width, level);
-        case TFORM_DOC_NODE_TABLE:
-        case TFORM_DOC_NODE_BRAILLE_CANVAS:
-        case TFORM_DOC_NODE_IMAGE:
+        case ETFORM_DOC_NODE_PARAGRAPH:
+            return paragraph_height((ETFormParagraphObject *)node->object, width);
+        case ETFORM_DOC_NODE_GROUP:
+            return doc_group_height((ETFormDocGroupObject *)node->object, width, level);
+        case ETFORM_DOC_NODE_TABLE:
+        case ETFORM_DOC_NODE_BRAILLE_CANVAS:
+        case ETFORM_DOC_NODE_IMAGE:
             return static_object_height(node->object, width);
-        case TFORM_DOC_NODE_CODE_BLOCK:
-            return code_block_height((TFormCodeBlockObject *)node->object);
-        case TFORM_DOC_NODE_ORDERED_LIST:
-        case TFORM_DOC_NODE_UNORDERED_LIST:
-            return doc_list_height((TFormDocListObject *)node->object, width, level);
+        case ETFORM_DOC_NODE_CODE_BLOCK:
+            return code_block_height((ETFormCodeBlockObject *)node->object);
+        case ETFORM_DOC_NODE_ORDERED_LIST:
+        case ETFORM_DOC_NODE_UNORDERED_LIST:
+            return doc_list_height((ETFormDocListObject *)node->object, width, level);
     }
     return 0;
 }
 
-static int doc_total_height(TFormDocObject *doc, int width) {
+static int doc_total_height(ETFormDocObject *doc, int width) {
     int height = 0;
     if (!doc) return 0;
     for (Py_ssize_t i = 0; i < doc->child_count; i++) {
@@ -369,7 +369,7 @@ static int doc_total_height(TFormDocObject *doc, int width) {
 }
 
 static void doc_content_bounds(
-    TFormDocObject *doc,
+    ETFormDocObject *doc,
     int columns,
     int *x,
     int *width
@@ -387,7 +387,7 @@ static void doc_content_bounds(
 }
 
 static void doc_viewport_bounds(
-    TFormDocObject *doc,
+    ETFormDocObject *doc,
     int body_h,
     int *top,
     int *bottom
@@ -421,7 +421,7 @@ static void draw_doc_border(
     if (!win || width < 2 || height < 2) return;
     int right = x + width - 1;
     int last_row = top + height - 1;
-    int attr = tform_color_pair(TFORM_PAIR_FOOTER_BORDER);
+    int attr = etform_color_pair(ETFORM_PAIR_FOOTER_BORDER);
     wattron(win, attr);
     if (top >= clip_top && top < clip_bottom) {
         mvwaddstr(win, top, x, "┌");
@@ -458,36 +458,36 @@ static int syntax_token_pair(SyntaxTokenKind kind, int background) {
     switch (kind) {
         case SYNTAX_TOKEN_COMMENT:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_COMMENT
-                : TFORM_PAIR_SYNTAX_COMMENT;
+                ? ETFORM_PAIR_DOC_SYNTAX_COMMENT
+                : ETFORM_PAIR_SYNTAX_COMMENT;
         case SYNTAX_TOKEN_STRING:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_STRING
-                : TFORM_PAIR_SYNTAX_STRING;
+                ? ETFORM_PAIR_DOC_SYNTAX_STRING
+                : ETFORM_PAIR_SYNTAX_STRING;
         case SYNTAX_TOKEN_NUMBER:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_NUMBER
-                : TFORM_PAIR_SYNTAX_NUMBER;
+                ? ETFORM_PAIR_DOC_SYNTAX_NUMBER
+                : ETFORM_PAIR_SYNTAX_NUMBER;
         case SYNTAX_TOKEN_KEYWORD:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_KEYWORD
-                : TFORM_PAIR_SYNTAX_KEYWORD;
+                ? ETFORM_PAIR_DOC_SYNTAX_KEYWORD
+                : ETFORM_PAIR_SYNTAX_KEYWORD;
         case SYNTAX_TOKEN_TYPE:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_TYPE
-                : TFORM_PAIR_SYNTAX_TYPE;
+                ? ETFORM_PAIR_DOC_SYNTAX_TYPE
+                : ETFORM_PAIR_SYNTAX_TYPE;
         case SYNTAX_TOKEN_PREPROCESSOR:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_PREPROCESSOR
-                : TFORM_PAIR_SYNTAX_PREPROCESSOR;
+                ? ETFORM_PAIR_DOC_SYNTAX_PREPROCESSOR
+                : ETFORM_PAIR_SYNTAX_PREPROCESSOR;
         case SYNTAX_TOKEN_OPERATOR:
             return background
-                ? TFORM_PAIR_DOC_SYNTAX_OPERATOR
-                : TFORM_PAIR_SYNTAX_OPERATOR;
+                ? ETFORM_PAIR_DOC_SYNTAX_OPERATOR
+                : ETFORM_PAIR_SYNTAX_OPERATOR;
         case SYNTAX_TOKEN_PLAIN:
-            return background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
+            return background ? ETFORM_PAIR_DOC_CODE : ETFORM_PAIR_NORMAL;
     }
-    return background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
+    return background ? ETFORM_PAIR_DOC_CODE : ETFORM_PAIR_NORMAL;
 }
 
 static void draw_syntax_token(
@@ -498,11 +498,11 @@ static void draw_syntax_token(
 ) {
     SyntaxDrawContext *draw = user_data;
     if (!draw || draw->remaining <= 0) return;
-    int attr = tform_color_pair(
+    int attr = etform_color_pair(
         (short)syntax_token_pair(kind, draw->background)
     );
     wattron(draw->win, attr);
-    int drawn = tform_ui_text_addnstr_width(
+    int drawn = etform_ui_text_addnstr_width(
         draw->win, text, bytes, draw->remaining
     );
     wattroff(draw->win, attr);
@@ -520,21 +520,21 @@ static void draw_code_line(
     SyntaxLanguage language,
     int syntax_highlight
 ) {
-    int plain_pair = background ? TFORM_PAIR_DOC_CODE : TFORM_PAIR_NORMAL;
+    int plain_pair = background ? ETFORM_PAIR_DOC_CODE : ETFORM_PAIR_NORMAL;
     if (!syntax_highlight || language == SYNTAX_LANGUAGE_UNKNOWN) {
-        wattron(win, tform_color_pair((short)plain_pair));
+        wattron(win, etform_color_pair((short)plain_pair));
         wmove(win, y, x);
-        tform_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, tform_color_pair((short)plain_pair));
+        etform_ui_text_addnstr_width(win, line, bytes, width);
+        wattroff(win, etform_color_pair((short)plain_pair));
         return;
     }
 
     char *line_copy = malloc(bytes + 1);
     if (!line_copy) {
-        wattron(win, tform_color_pair((short)plain_pair));
+        wattron(win, etform_color_pair((short)plain_pair));
         wmove(win, y, x);
-        tform_ui_text_addnstr_width(win, line, bytes, width);
-        wattroff(win, tform_color_pair((short)plain_pair));
+        etform_ui_text_addnstr_width(win, line, bytes, width);
+        wattroff(win, etform_color_pair((short)plain_pair));
         return;
     }
     memcpy(line_copy, line, bytes);
@@ -564,9 +564,9 @@ static void draw_code_block(
     int content_width = width;
     if (background) {
         if (row >= clip_top && row < clip_bottom) {
-            wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+            wattron(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
             mvwhline(win, row, x, ' ', width);
-            wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+            wattroff(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
         }
         row++;
         content_x++;
@@ -582,9 +582,9 @@ static void draw_code_block(
         size_t bytes = strcspn(line, "\r\n");
         if (row >= clip_top && row < clip_bottom) {
             if (background) {
-                wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+                wattron(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
                 mvwhline(win, row, x, ' ', width);
-                wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+                wattroff(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
             }
             draw_code_line(
                 win, row, content_x, content_width, line, bytes,
@@ -602,9 +602,9 @@ static void draw_code_block(
     }
 
     if (background && row >= clip_top && row < clip_bottom) {
-        wattron(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+        wattron(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
         mvwhline(win, row, x, ' ', width);
-        wattroff(win, tform_color_pair(TFORM_PAIR_DOC_CODE));
+        wattroff(win, etform_color_pair(ETFORM_PAIR_DOC_CODE));
     }
 }
 
@@ -617,14 +617,14 @@ static void draw_static_object(
     int clip_top,
     int clip_bottom
 ) {
-    TFormSectionElement element;
+    ETFormSectionElement element;
     memset(&element, 0, sizeof(element));
-    if (tform_section_element_from_object(&element, object) < 0) {
+    if (etform_section_element_from_object(&element, object) < 0) {
         PyErr_Clear();
         return;
     }
-    tform_draw_static_element(win, y, x, width, &element, clip_top, clip_bottom);
-    tform_section_element_free(&element);
+    etform_draw_static_element(win, y, x, width, &element, clip_top, clip_bottom);
+    etform_section_element_free(&element);
 }
 
 static void draw_code_block_object(
@@ -632,7 +632,7 @@ static void draw_code_block_object(
     int y,
     int x,
     int width,
-    TFormCodeBlockObject *block,
+    ETFormCodeBlockObject *block,
     int syntax_highlight,
     int clip_top,
     int clip_bottom
@@ -649,7 +649,7 @@ static void draw_doc_list(
     int y,
     int x,
     int width,
-    TFormDocListObject *list,
+    ETFormDocListObject *list,
     int level,
     int clip_top,
     int clip_bottom
@@ -659,14 +659,14 @@ static void draw_doc_list(
     int indent = level * 2;
     if (indent > width - 1) indent = width > 1 ? width - 1 : 0;
     for (Py_ssize_t i = 0; i < list->item_count; i++) {
-        TFormDocListItem *item = &list->items[i];
-        if (item->kind == TFORM_DOC_LIST_ITEM_ORDERED_LIST ||
-            item->kind == TFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
+        ETFormDocListItem *item = &list->items[i];
+        if (item->kind == ETFORM_DOC_LIST_ITEM_ORDERED_LIST ||
+            item->kind == ETFORM_DOC_LIST_ITEM_UNORDERED_LIST) {
             int nested_height = doc_list_height(
-                (TFormDocListObject *)item->object, width, level + 1
+                (ETFormDocListObject *)item->object, width, level + 1
             );
             draw_doc_list(
-                win, row, x, width, (TFormDocListObject *)item->object,
+                win, row, x, width, (ETFormDocListObject *)item->object,
                 level + 1, clip_top, clip_bottom
             );
             row += nested_height;
@@ -678,15 +678,15 @@ static void draw_doc_list(
         } else {
             snprintf(marker, sizeof(marker), "%*s• ", indent, "");
         }
-        int prefix_width = tform_ui_text_width(marker);
+        int prefix_width = etform_ui_text_width(marker);
         int height = paragraph_height_prefixed(
-            (TFormParagraphObject *)item->object,
+            (ETFormParagraphObject *)item->object,
             width,
             prefix_width,
             prefix_width
         );
         draw_paragraph_prefixed(
-            win, row, x, width, (TFormParagraphObject *)item->object,
+            win, row, x, width, (ETFormParagraphObject *)item->object,
             marker, prefix_width, clip_top, clip_bottom
         );
         row += height;
@@ -698,7 +698,7 @@ static void draw_doc_node(
     int y,
     int x,
     int width,
-    TFormDocNode *node,
+    ETFormDocNode *node,
     int level,
     int syntax_highlight,
     int clip_top,
@@ -710,7 +710,7 @@ static void draw_doc_group(
     int y,
     int x,
     int width,
-    TFormDocGroupObject *group,
+    ETFormDocGroupObject *group,
     int level,
     int syntax_highlight,
     int clip_top,
@@ -722,7 +722,7 @@ static void draw_doc_group(
     int inner_y = y + group->padding;
     int inner_width = width - group->padding * 2;
     if (group->boxed) {
-        tform_draw_static_box(
+        etform_draw_static_box(
             win, y, x, width, height, clip_top, clip_bottom
         );
         inner_x += 2;
@@ -730,14 +730,14 @@ static void draw_doc_group(
         inner_width -= 4;
         if (y >= clip_top && y < clip_bottom &&
             group->label && *group->label && width > 6) {
-            int title_width = tform_ui_text_width(group->label);
+            int title_width = etform_ui_text_width(group->label);
             if (title_width > width - 6) title_width = width - 6;
-            wattron(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER) | A_BOLD);
+            wattron(win, etform_color_pair(ETFORM_PAIR_FOOTER_BORDER) | A_BOLD);
             mvwaddch(win, y, x + 2, ' ');
             wmove(win, y, x + 3);
-            tform_ui_text_addstr_width(win, group->label, title_width);
+            etform_ui_text_addstr_width(win, group->label, title_width);
             waddch(win, ' ');
-            wattroff(win, tform_color_pair(TFORM_PAIR_FOOTER_BORDER) | A_BOLD);
+            wattroff(win, etform_color_pair(ETFORM_PAIR_FOOTER_BORDER) | A_BOLD);
         }
     }
     if (inner_width < 1) inner_width = 1;
@@ -745,7 +745,7 @@ static void draw_doc_group(
     int row = inner_y;
     for (Py_ssize_t i = 0; i < group->child_count; i++) {
         if (i > 0) row++;
-        TFormDocNode *node = &group->children[i];
+        ETFormDocNode *node = &group->children[i];
         int item_height = doc_node_height(node, inner_width, level + 1);
         draw_doc_node(
             win, row, inner_x, inner_width, node,
@@ -760,7 +760,7 @@ static void draw_doc_node(
     int y,
     int x,
     int width,
-    TFormDocNode *node,
+    ETFormDocNode *node,
     int level,
     int syntax_highlight,
     int clip_top,
@@ -768,33 +768,33 @@ static void draw_doc_node(
 ) {
     if (!win || !node || width <= 0) return;
     switch (node->kind) {
-        case TFORM_DOC_NODE_PARAGRAPH:
+        case ETFORM_DOC_NODE_PARAGRAPH:
             draw_paragraph_prefixed(
-                win, y, x, width, (TFormParagraphObject *)node->object,
+                win, y, x, width, (ETFormParagraphObject *)node->object,
                 "", 0, clip_top, clip_bottom
             );
             break;
-        case TFORM_DOC_NODE_GROUP:
+        case ETFORM_DOC_NODE_GROUP:
             draw_doc_group(
-                win, y, x, width, (TFormDocGroupObject *)node->object,
+                win, y, x, width, (ETFormDocGroupObject *)node->object,
                 level, syntax_highlight, clip_top, clip_bottom
             );
             break;
-        case TFORM_DOC_NODE_TABLE:
-        case TFORM_DOC_NODE_BRAILLE_CANVAS:
-        case TFORM_DOC_NODE_IMAGE:
+        case ETFORM_DOC_NODE_TABLE:
+        case ETFORM_DOC_NODE_BRAILLE_CANVAS:
+        case ETFORM_DOC_NODE_IMAGE:
             draw_static_object(win, y, x, width, node->object, clip_top, clip_bottom);
             break;
-        case TFORM_DOC_NODE_CODE_BLOCK:
+        case ETFORM_DOC_NODE_CODE_BLOCK:
             draw_code_block_object(
-                win, y, x, width, (TFormCodeBlockObject *)node->object,
+                win, y, x, width, (ETFormCodeBlockObject *)node->object,
                 syntax_highlight, clip_top, clip_bottom
             );
             break;
-        case TFORM_DOC_NODE_ORDERED_LIST:
-        case TFORM_DOC_NODE_UNORDERED_LIST:
+        case ETFORM_DOC_NODE_ORDERED_LIST:
+        case ETFORM_DOC_NODE_UNORDERED_LIST:
             draw_doc_list(
-                win, y, x, width, (TFormDocListObject *)node->object,
+                win, y, x, width, (ETFormDocListObject *)node->object,
                 level, clip_top, clip_bottom
             );
             break;
@@ -802,27 +802,27 @@ static void draw_doc_node(
 }
 
 static void draw_doc(
-    TFormPmNode *main_panel,
-    TFormPmNode *footer_panel,
-    TFormDocObject *doc,
+    ETFormPmNode *main_panel,
+    ETFormPmNode *footer_panel,
+    ETFormDocObject *doc,
     int *top
 ) {
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) footer_h = 1;
-    tform_pm_resize(main_panel, body_h, COLS);
-    tform_pm_resize(footer_panel, footer_h, COLS);
-    tform_pm_move(footer_panel, body_h, 0);
+    etform_pm_resize(main_panel, body_h, COLS);
+    etform_pm_resize(footer_panel, footer_h, COLS);
+    etform_pm_move(footer_panel, body_h, 0);
     werase(main_panel->win);
-    wbkgd(main_panel->win, tform_color_pair(TFORM_PAIR_NORMAL));
-    wattron(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
+    wbkgd(main_panel->win, etform_color_pair(ETFORM_PAIR_NORMAL));
+    wattron(main_panel->win, etform_color_pair(ETFORM_PAIR_HEADER));
     mvwhline(main_panel->win, 0, 0, ' ', COLS);
     mvwprintw(
         main_panel->win, 0, 1, "%.*s",
         COLS > 2 ? COLS - 2 : 0,
-        doc->title ? doc->title : "TForm Doc"
+        doc->title ? doc->title : "ETForm Doc"
     );
-    wattroff(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
+    wattroff(main_panel->win, etform_color_pair(ETFORM_PAIR_HEADER));
 
     int content_x;
     int content_width;
@@ -863,7 +863,7 @@ static void draw_doc(
     int row = document_y + (border_visible ? 1 : 0);
     for (Py_ssize_t i = 0; i < doc->child_count; i++) {
         if (i > 0) row++;
-        TFormDocNode *node = &doc->children[i];
+        ETFormDocNode *node = &doc->children[i];
         draw_doc_node(
             main_panel->win,
             row,
@@ -878,18 +878,18 @@ static void draw_doc(
         row += doc_node_height(node, content_width, 0);
     }
 
-    tform_ui_draw_footer(
+    etform_ui_draw_footer(
         footer_panel->win,
         "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q/Esc] Exit"
     );
-    tform_pm_wnoutrefresh(main_panel);
-    tform_pm_wnoutrefresh(footer_panel);
-    tform_pm_update();
+    etform_pm_wnoutrefresh(main_panel);
+    etform_pm_wnoutrefresh(footer_panel);
+    etform_pm_update();
 }
 
-int tform_run_doc(TFormDocObject *doc) {
+int etform_run_doc(ETFormDocObject *doc) {
     setlocale(LC_ALL, "");
-    tform_disable_flow_control();
+    etform_disable_flow_control();
     setenv("TERM", "xterm-256color", 0);
     initscr();
     cbreak();
@@ -897,22 +897,22 @@ int tform_run_doc(TFormDocObject *doc) {
     keypad(stdscr, TRUE);
     set_escdelay(25);
     curs_set(0);
-    tform_init_editor_theme();
-    tform_pm_init();
+    etform_init_editor_theme();
+    etform_pm_init();
 
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) footer_h = 1;
-    TFormPmNode *main_panel = tform_pm_add(
+    ETFormPmNode *main_panel = etform_pm_add(
         0, 0, body_h, COLS,
-        TFORM_PM_LAYER_MAIN, TFORM_PM_LAYER_MAIN
+        ETFORM_PM_LAYER_MAIN, ETFORM_PM_LAYER_MAIN
     );
-    TFormPmNode *footer_panel = tform_pm_add(
+    ETFormPmNode *footer_panel = etform_pm_add(
         body_h, 0, footer_h, COLS,
-        TFORM_PM_LAYER_FOOTER, TFORM_PM_LAYER_FOOTER
+        ETFORM_PM_LAYER_FOOTER, ETFORM_PM_LAYER_FOOTER
     );
     if (!main_panel || !footer_panel) {
-        tform_pm_teardown();
+        etform_pm_teardown();
         endwin();
         return -1;
     }
@@ -962,7 +962,7 @@ int tform_run_doc(TFormDocObject *doc) {
         }
     }
 
-    tform_pm_teardown();
+    etform_pm_teardown();
     endwin();
     return 0;
 }

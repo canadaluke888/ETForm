@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-int tform_insert_int_preset(int *values, int count, int capacity, int current) {
+int etform_insert_int_preset(int *values, int count, int capacity, int current) {
     int insert_at = count;
 
     if (!values || count < 0 || capacity < count) {
@@ -27,7 +27,7 @@ int tform_insert_int_preset(int *values, int count, int capacity, int current) {
     return count + 1;
 }
 
-int tform_next_form_index(int current, int count, int dir) {
+int etform_next_form_index(int current, int count, int dir) {
     if (count <= 0) {
         return 0;
     }
@@ -43,7 +43,7 @@ int tform_next_form_index(int current, int count, int dir) {
     return current;
 }
 
-void tform_string_list_init(TFormStringList *list) {
+void etform_string_list_init(ETFormStringList *list) {
     if (!list) {
         return;
     }
@@ -52,7 +52,7 @@ void tform_string_list_init(TFormStringList *list) {
     list->capacity = 0;
 }
 
-void tform_string_list_free(TFormStringList *list) {
+void etform_string_list_free(ETFormStringList *list) {
     if (!list) {
         return;
     }
@@ -60,10 +60,10 @@ void tform_string_list_free(TFormStringList *list) {
         free(list->items[i]);
     }
     free(list->items);
-    tform_string_list_init(list);
+    etform_string_list_init(list);
 }
 
-static int ensure_capacity(TFormStringList *list, int needed) {
+static int ensure_capacity(ETFormStringList *list, int needed) {
     if (!list || needed < 0) {
         return -1;
     }
@@ -83,7 +83,7 @@ static int ensure_capacity(TFormStringList *list, int needed) {
     return 0;
 }
 
-int tform_string_list_append(TFormStringList *list, const char *value) {
+int etform_string_list_append(ETFormStringList *list, const char *value) {
     if (!list || !value || !*value || ensure_capacity(list, list->count + 1) < 0) {
         return -1;
     }
@@ -95,7 +95,7 @@ int tform_string_list_append(TFormStringList *list, const char *value) {
     return 0;
 }
 
-int tform_string_list_set(TFormStringList *list, int index, const char *value) {
+int etform_string_list_set(ETFormStringList *list, int index, const char *value) {
     if (!list || index < 0 || index >= list->count || !value || !*value) {
         return -1;
     }
@@ -108,7 +108,7 @@ int tform_string_list_set(TFormStringList *list, int index, const char *value) {
     return 0;
 }
 
-int tform_string_list_delete(TFormStringList *list, int index) {
+int etform_string_list_delete(ETFormStringList *list, int index) {
     if (!list || index < 0 || index >= list->count) {
         return -1;
     }
@@ -120,14 +120,14 @@ int tform_string_list_delete(TFormStringList *list, int index) {
     return 0;
 }
 
-int tform_string_list_copy(TFormStringList *dest, const TFormStringList *src) {
+int etform_string_list_copy(ETFormStringList *dest, const ETFormStringList *src) {
     if (!dest || !src) {
         return -1;
     }
-    tform_string_list_init(dest);
+    etform_string_list_init(dest);
     for (int i = 0; i < src->count; i++) {
-        if (tform_string_list_append(dest, src->items[i]) < 0) {
-            tform_string_list_free(dest);
+        if (etform_string_list_append(dest, src->items[i]) < 0) {
+            etform_string_list_free(dest);
             return -1;
         }
     }

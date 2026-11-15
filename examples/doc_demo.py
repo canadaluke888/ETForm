@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only document demo for TForm's Doc API."""
+"""Read-only document demo for ETForm's Doc API."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tform import (
+from etform import (
     BrailleCanvas,
     CodeBlock,
     Doc,
@@ -23,7 +23,7 @@ from tform import (
 
 def build_doc() -> Doc:
     doc = Doc(
-        title="TForm Manual",
+        title="ETForm Manual",
         margin_x=30,
         margin_y=1,
         syntax_highlight=True,
@@ -45,9 +45,9 @@ def build_doc() -> Doc:
     canvas.draw_circle(canvas.dot_width // 2, canvas.dot_height // 2, 9)
 
     doc.add(
-        Text("TForm Manual", align="center", bold=True, color="cyan"),
+        Text("ETForm Manual", align="center", bold=True, color="cyan"),
         Paragraph(
-            "TForm documents support ",
+            "ETForm documents support ",
             Text("granular inline styling", color="yellow", bold=True),
             " without a markup parser."
         ),
@@ -65,10 +65,10 @@ def build_doc() -> Doc:
         capabilities,
         CodeBlock(
             code=(
-                "from tform import Doc, Paragraph, Text, UnorderedList\n\n"
+                "from etform import Doc, Paragraph, Text, UnorderedList\n\n"
                 'doc = Doc(title="Manual", margin_x=4)\n'
                 "doc.add(\n"
-                '    Paragraph("Hello ", Text("from TForm docs", bold=True)),\n'
+                '    Paragraph("Hello ", Text("from ETForm docs", bold=True)),\n'
                 '    UnorderedList("Static list item"),\n'
                 ")\n"
                 "doc.run()"

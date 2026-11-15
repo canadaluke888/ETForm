@@ -12,7 +12,7 @@ static int char_display_width(wchar_t ch) {
     return width > 0 ? width : 1;
 }
 
-int tform_ui_text_width_n(const char *text, size_t bytes) {
+int etform_ui_text_width_n(const char *text, size_t bytes) {
     mbstate_t state;
     size_t offset = 0;
     int width = 0;
@@ -37,11 +37,11 @@ int tform_ui_text_width_n(const char *text, size_t bytes) {
     return width;
 }
 
-int tform_ui_text_width(const char *text) {
-    return tform_ui_text_width_n(text, text ? strlen(text) : 0);
+int etform_ui_text_width(const char *text) {
+    return etform_ui_text_width_n(text, text ? strlen(text) : 0);
 }
 
-size_t tform_ui_text_bytes_for_width(const char *text, int max_width) {
+size_t etform_ui_text_bytes_for_width(const char *text, int max_width) {
     mbstate_t state;
     size_t offset = 0;
     size_t last_fit = 0;
@@ -74,22 +74,22 @@ size_t tform_ui_text_bytes_for_width(const char *text, int max_width) {
     return last_fit;
 }
 
-int tform_ui_text_addnstr_width(WINDOW *win, const char *text, size_t bytes, int max_width) {
+int etform_ui_text_addnstr_width(WINDOW *win, const char *text, size_t bytes, int max_width) {
     size_t clipped;
     if (!win || !text || max_width <= 0) {
         return 0;
     }
-    clipped = tform_ui_text_bytes_for_width(text, max_width);
+    clipped = etform_ui_text_bytes_for_width(text, max_width);
     if (clipped > bytes) {
         clipped = bytes;
     }
     waddnstr(win, text, (int)clipped);
-    return tform_ui_text_width_n(text, clipped);
+    return etform_ui_text_width_n(text, clipped);
 }
 
-int tform_ui_text_addstr_width(WINDOW *win, const char *text, int max_width) {
+int etform_ui_text_addstr_width(WINDOW *win, const char *text, int max_width) {
     if (!text) {
         return 0;
     }
-    return tform_ui_text_addnstr_width(win, text, strlen(text), max_width);
+    return etform_ui_text_addnstr_width(win, text, strlen(text), max_width);
 }

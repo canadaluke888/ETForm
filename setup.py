@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from setuptools import Extension, setup
 
 
 sources = [
-    "src/tformmodule.c",
+    "src/etformmodule.c",
     "src/form_object.c",
     "src/form_runtime.c",
     "src/doc_object.c",
@@ -19,14 +21,25 @@ sources = [
 ]
 
 setup(
-    name="tform",
-    version="0.17.0",
+    name="etform",
+    version=Path("VERSION").read_text(encoding="utf-8").strip(),
     description="Native ncurses forms and read-only terminal documents",
-    packages=["tform"],
-    package_data={"tform": ["py.typed", "*.pyi"]},
+    long_description=Path("README.md").read_text(encoding="utf-8"),
+    long_description_content_type="text/markdown",
+    python_requires=">=3.11",
+    url="https://github.com/canadaluke888/TForm",
+    classifiers=[
+        "Operating System :: POSIX :: Linux",
+        "Programming Language :: C",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Topic :: Software Development :: User Interfaces",
+    ],
+    packages=["etform"],
+    package_data={"etform": ["py.typed", "*.pyi"]},
     ext_modules=[
         Extension(
-            "tform._tform",
+            "etform._etform",
             sources=sources,
             include_dirs=["src"],
             depends=[

@@ -1,100 +1,100 @@
-#ifndef TFORM_FORM_OBJECT_H
-#define TFORM_FORM_OBJECT_H
+#ifndef ETFORM_FORM_OBJECT_H
+#define ETFORM_FORM_OBJECT_H
 
 #include "braille_canvas.h"
 #include "form_helpers.h"
 
 #include <Python.h>
 
-#define TFORM_DEFAULT_PADDING 1
+#define ETFORM_DEFAULT_PADDING 1
 
 typedef enum {
-    TFORM_FIELD_TEXT,
-    TFORM_FIELD_CHOICE,
-    TFORM_FIELD_BOOL,
-    TFORM_FIELD_INT,
-    TFORM_FIELD_LIST,
-    TFORM_FIELD_CHECKBOX,
-    TFORM_FIELD_TEXT_SECTION,
-    TFORM_FIELD_SEPARATOR,
-    TFORM_FIELD_SECTION
-} TFormFieldKind;
+    ETFORM_FIELD_TEXT,
+    ETFORM_FIELD_CHOICE,
+    ETFORM_FIELD_BOOL,
+    ETFORM_FIELD_INT,
+    ETFORM_FIELD_LIST,
+    ETFORM_FIELD_CHECKBOX,
+    ETFORM_FIELD_TEXT_SECTION,
+    ETFORM_FIELD_SEPARATOR,
+    ETFORM_FIELD_SECTION
+} ETFormFieldKind;
 
 typedef enum {
-    TFORM_LABEL_ALIGN_LEFT,
-    TFORM_LABEL_ALIGN_CENTER,
-    TFORM_LABEL_ALIGN_RIGHT
-} TFormLabelAlign;
+    ETFORM_LABEL_ALIGN_LEFT,
+    ETFORM_LABEL_ALIGN_CENTER,
+    ETFORM_LABEL_ALIGN_RIGHT
+} ETFormLabelAlign;
 
 typedef enum {
-    TFORM_TEXT_COLOR_DEFAULT,
-    TFORM_TEXT_COLOR_WHITE,
-    TFORM_TEXT_COLOR_CYAN,
-    TFORM_TEXT_COLOR_YELLOW,
-    TFORM_TEXT_COLOR_GREEN,
-    TFORM_TEXT_COLOR_BLUE,
-    TFORM_TEXT_COLOR_MAGENTA,
-    TFORM_TEXT_COLOR_RED
-} TFormTextColor;
+    ETFORM_TEXT_COLOR_DEFAULT,
+    ETFORM_TEXT_COLOR_WHITE,
+    ETFORM_TEXT_COLOR_CYAN,
+    ETFORM_TEXT_COLOR_YELLOW,
+    ETFORM_TEXT_COLOR_GREEN,
+    ETFORM_TEXT_COLOR_BLUE,
+    ETFORM_TEXT_COLOR_MAGENTA,
+    ETFORM_TEXT_COLOR_RED
+} ETFormTextColor;
 
 typedef enum {
-    TFORM_CHECKBOX_TICK_X,
-    TFORM_CHECKBOX_TICK_BLOCK,
-    TFORM_CHECKBOX_TICK_DOT
-} TFormCheckboxTick;
+    ETFORM_CHECKBOX_TICK_X,
+    ETFORM_CHECKBOX_TICK_BLOCK,
+    ETFORM_CHECKBOX_TICK_DOT
+} ETFormCheckboxTick;
 
 typedef struct {
     char *value;
-    TFormLabelAlign align;
+    ETFormLabelAlign align;
     int bold;
     int italicized;
     int dim;
     int underline;
     int blink;
     int strikethrough;
-    TFormTextColor color;
+    ETFormTextColor color;
     int wrap_text;
-} TFormTextStyle;
+} ETFormTextStyle;
 
 typedef struct {
     int is_separator;
     char **cells;
-    TFormTextStyle separator;
-} TFormTableRow;
+    ETFormTextStyle separator;
+} ETFormTableRow;
 
 typedef struct {
-    TFormTextStyle title;
+    ETFormTextStyle title;
     int show_lines;
-    TFormTextColor color;
+    ETFormTextColor color;
     int padding;
     char **columns;
     int column_count;
     int column_capacity;
-    TFormTableRow *rows;
+    ETFormTableRow *rows;
     int row_count;
     int row_capacity;
-} TFormTable;
+} ETFormTable;
 
 typedef enum {
-    TFORM_SECTION_ELEMENT_TEXT,
-    TFORM_SECTION_ELEMENT_TABLE,
-    TFORM_SECTION_ELEMENT_BRAILLE_CANVAS
-} TFormSectionElementKind;
+    ETFORM_SECTION_ELEMENT_TEXT,
+    ETFORM_SECTION_ELEMENT_TABLE,
+    ETFORM_SECTION_ELEMENT_BRAILLE_CANVAS
+} ETFormSectionElementKind;
 
 typedef struct {
-    TFormSectionElementKind kind;
-    TFormTextStyle text;
-    TFormTable table;
+    ETFormSectionElementKind kind;
+    ETFormTextStyle text;
+    ETFormTable table;
     BrailleCanvas canvas;
-    TFormTextColor canvas_color;
+    ETFormTextColor canvas_color;
     int canvas_padding;
-} TFormSectionElement;
+} ETFormSectionElement;
 
 typedef struct {
     char *key;
-    TFormTextStyle label;
+    ETFormTextStyle label;
     char *description;
-    TFormFieldKind kind;
+    ETFormFieldKind kind;
     int padding;
     int scrollable;
     int wrap_text;
@@ -111,56 +111,56 @@ typedef struct {
     int max_value;
     char *text_value;
     char *default_value;
-    TFormTextStyle placeholder;
+    ETFormTextStyle placeholder;
     int bool_value;
     int int_value;
-    TFormTextColor field_color;
-    TFormTextColor separator_color;
+    ETFormTextColor field_color;
+    ETFormTextColor separator_color;
     char **choices;
     int choice_count;
-    TFormStringList list_value;
-    TFormTextStyle *list_styles;
+    ETFormStringList list_value;
+    ETFormTextStyle *list_styles;
     int list_style_capacity;
-    TFormTextStyle *checkbox_options;
+    ETFormTextStyle *checkbox_options;
     int *checkbox_checked;
     int checkbox_count;
-    TFormCheckboxTick checkbox_tick;
-    TFormSectionElement *section_elements;
+    ETFormCheckboxTick checkbox_tick;
+    ETFormSectionElement *section_elements;
     int section_element_count;
     int section_element_capacity;
     int section_boxed;
-} TFormField;
+} ETFormField;
 
 typedef struct {
     PyObject_HEAD
     char *title;
-    TFormField *fields;
+    ETFormField *fields;
     int field_count;
     int field_capacity;
-} TFormObject;
+} ETFormObject;
 
-extern PyTypeObject TFormType;
-extern PyTypeObject TFormTextType;
-extern PyTypeObject TFormFilePickerType;
-extern PyTypeObject TFormCalendarType;
-extern PyTypeObject TFormClockType;
-extern PyTypeObject TFormBrailleCanvasType;
-extern PyTypeObject TFormImageType;
-extern PyTypeObject TFormTableType;
+extern PyTypeObject ETFormType;
+extern PyTypeObject ETFormTextType;
+extern PyTypeObject ETFormFilePickerType;
+extern PyTypeObject ETFormCalendarType;
+extern PyTypeObject ETFormClockType;
+extern PyTypeObject ETFormBrailleCanvasType;
+extern PyTypeObject ETFormImageType;
+extern PyTypeObject ETFormTableType;
 
-void tform_text_style_init(TFormTextStyle *style);
-void tform_text_style_free(TFormTextStyle *style);
-int tform_text_style_copy(TFormTextStyle *dest, const TFormTextStyle *src, const char *fallback_value);
-int tform_text_style_from_object(PyObject *object, int allow_empty, TFormTextStyle *style);
-void tform_table_init(TFormTable *table);
-void tform_table_free(TFormTable *table);
-int tform_table_copy(TFormTable *dest, const TFormTable *src);
-void tform_section_element_free(TFormSectionElement *element);
-int tform_section_element_from_object(TFormSectionElement *element, PyObject *item);
-void tform_field_free(TFormField *field);
-int tform_list_append_value(TFormField *field, const char *value, const TFormTextStyle *style);
-int tform_list_set_value(TFormField *field, int index, const char *value, const TFormTextStyle *style);
-int tform_list_delete_value(TFormField *field, int index);
-PyObject *tform_build_result(TFormObject *self);
+void etform_text_style_init(ETFormTextStyle *style);
+void etform_text_style_free(ETFormTextStyle *style);
+int etform_text_style_copy(ETFormTextStyle *dest, const ETFormTextStyle *src, const char *fallback_value);
+int etform_text_style_from_object(PyObject *object, int allow_empty, ETFormTextStyle *style);
+void etform_table_init(ETFormTable *table);
+void etform_table_free(ETFormTable *table);
+int etform_table_copy(ETFormTable *dest, const ETFormTable *src);
+void etform_section_element_free(ETFormSectionElement *element);
+int etform_section_element_from_object(ETFormSectionElement *element, PyObject *item);
+void etform_field_free(ETFormField *field);
+int etform_list_append_value(ETFormField *field, const char *value, const ETFormTextStyle *style);
+int etform_list_set_value(ETFormField *field, int index, const char *value, const ETFormTextStyle *style);
+int etform_list_delete_value(ETFormField *field, int index);
+PyObject *etform_build_result(ETFormObject *self);
 
 #endif

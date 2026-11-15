@@ -22,12 +22,12 @@
 #define NUMERIC_ACCEL_WINDOW_MS 180
 
 typedef enum {
-    TFORM_EDIT_NONE,
-    TFORM_EDIT_SCROLL,
-    TFORM_EDIT_TEXT,
-    TFORM_EDIT_LIST,
-    TFORM_EDIT_CHECKBOX
-} TFormEditMode;
+    ETFORM_EDIT_NONE,
+    ETFORM_EDIT_SCROLL,
+    ETFORM_EDIT_TEXT,
+    ETFORM_EDIT_LIST,
+    ETFORM_EDIT_CHECKBOX
+} ETFormEditMode;
 
 typedef struct {
     int key;
@@ -76,7 +76,7 @@ static int text_field_wrap_line_count(const char *value, int max_cols) {
     return (int)(length / (size_t)max_cols) + 1;
 }
 
-static int text_field_insert_char(TFormField *field, int *cursor, char ch, int max_cols) {
+static int text_field_insert_char(ETFormField *field, int *cursor, char ch, int max_cols) {
     if (!field || !cursor || max_cols <= 0) {
         return 0;
     }
@@ -110,7 +110,7 @@ static int text_field_insert_char(TFormField *field, int *cursor, char ch, int m
     return 1;
 }
 
-static void text_field_insert_text(TFormField *field, int *cursor, const char *text, int max_cols) {
+static void text_field_insert_text(ETFormField *field, int *cursor, const char *text, int max_cols) {
     if (!field || !cursor || !text) {
         return;
     }
@@ -123,7 +123,7 @@ static void text_field_insert_text(TFormField *field, int *cursor, const char *t
     }
 }
 
-static void text_field_backspace(TFormField *field, int *cursor) {
+static void text_field_backspace(ETFormField *field, int *cursor) {
     if (!field || !cursor || !field->text_value) {
         return;
     }
@@ -138,7 +138,7 @@ static void text_field_backspace(TFormField *field, int *cursor) {
     (*cursor)--;
 }
 
-static void text_field_delete_at_cursor(TFormField *field, int cursor) {
+static void text_field_delete_at_cursor(ETFormField *field, int cursor) {
     if (!field || !field->text_value) {
         return;
     }
@@ -149,7 +149,7 @@ static void text_field_delete_at_cursor(TFormField *field, int cursor) {
     memmove(field->text_value + cursor, field->text_value + cursor + 1, length - (size_t)cursor);
 }
 
-static void text_field_move_cursor(TFormField *field, int *cursor, int dir, int max_cols) {
+static void text_field_move_cursor(ETFormField *field, int *cursor, int dir, int max_cols) {
     if (!field || !cursor) {
         return;
     }
@@ -168,7 +168,7 @@ static void text_field_move_cursor(TFormField *field, int *cursor, int dir, int 
     (void)max_cols;
 }
 
-static void text_field_move_cursor_vertical(TFormField *field, int *cursor, int dir, int max_cols) {
+static void text_field_move_cursor_vertical(ETFormField *field, int *cursor, int dir, int max_cols) {
     if (!field || !cursor || max_cols <= 0) {
         return;
     }
@@ -208,7 +208,7 @@ static void text_field_cursor_position(const char *value, int cursor, int max_co
     }
 }
 
-static void text_field_clear(TFormField *field) {
+static void text_field_clear(ETFormField *field) {
     if (!field) {
         return;
     }
@@ -216,12 +216,12 @@ static void text_field_clear(TFormField *field) {
     field->text_value = strdup("");
 }
 
-static int list_field_append_char(TFormField *field, int *selected, char ch, int max_cols) {
-    if (!field || !selected || field->kind != TFORM_FIELD_LIST || max_cols <= 0) {
+static int list_field_append_char(ETFormField *field, int *selected, char ch, int max_cols) {
+    if (!field || !selected || field->kind != ETFORM_FIELD_LIST || max_cols <= 0) {
         return 0;
     }
     if (field->list_value.count <= 0) {
-        if (tform_list_append_value(field, " ", NULL) < 0) {
+        if (etform_list_append_value(field, " ", NULL) < 0) {
             return 0;
         }
         field->list_value.items[0][0] = '\0';
@@ -249,7 +249,7 @@ static int list_field_append_char(TFormField *field, int *selected, char ch, int
     return 1;
 }
 
-static void list_field_append_text(TFormField *field, int *selected, const char *text, int max_cols) {
+static void list_field_append_text(ETFormField *field, int *selected, const char *text, int max_cols) {
     if (!field || !selected || !text) {
         return;
     }
@@ -265,8 +265,8 @@ static void list_field_append_text(TFormField *field, int *selected, const char 
     }
 }
 
-static void list_field_backspace(TFormField *field, int selected) {
-    if (!field || field->kind != TFORM_FIELD_LIST || selected < 0 || selected >= field->list_value.count) {
+static void list_field_backspace(ETFormField *field, int selected) {
+    if (!field || field->kind != ETFORM_FIELD_LIST || selected < 0 || selected >= field->list_value.count) {
         return;
     }
     char *value = field->list_value.items[selected];
@@ -279,14 +279,14 @@ static void list_field_backspace(TFormField *field, int selected) {
     }
 }
 
-static void list_field_prune_empty(TFormField *field, int *selected) {
-    if (!field || field->kind != TFORM_FIELD_LIST) {
+static void list_field_prune_empty(ETFormField *field, int *selected) {
+    if (!field || field->kind != ETFORM_FIELD_LIST) {
         return;
     }
     for (int i = 0; i < field->list_value.count;) {
         trim_in_place(field->list_value.items[i]);
         if (!field->list_value.items[i] || !*field->list_value.items[i]) {
-            tform_list_delete_value(field, i);
+            etform_list_delete_value(field, i);
             continue;
         }
         if (field->list_styles && i < field->list_style_capacity) {
@@ -347,7 +347,7 @@ static const char *bool_text(int value) {
     return value ? "true" : "false";
 }
 
-static void summarize_list(const TFormStringList *list, char *buffer, size_t size) {
+static void summarize_list(const ETFormStringList *list, char *buffer, size_t size) {
     if (!buffer || size == 0) {
         return;
     }
@@ -368,7 +368,7 @@ static void summarize_list(const TFormStringList *list, char *buffer, size_t siz
     }
 }
 
-static void summarize_checkbox(TFormField *field, char *buffer, size_t size) {
+static void summarize_checkbox(ETFormField *field, char *buffer, size_t size) {
     int checked = 0;
     if (!buffer || size == 0) {
         return;
@@ -386,9 +386,9 @@ static void summarize_checkbox(TFormField *field, char *buffer, size_t size) {
     snprintf(buffer, size, "%d/%d checked", checked, field->checkbox_count);
 }
 
-static void field_value(TFormField *field, char *buffer, size_t size) {
+static void field_value(ETFormField *field, char *buffer, size_t size) {
     switch (field->kind) {
-        case TFORM_FIELD_TEXT:
+        case ETFORM_FIELD_TEXT:
             snprintf(
                 buffer,
                 size,
@@ -398,46 +398,46 @@ static void field_value(TFormField *field, char *buffer, size_t size) {
                     : field->placeholder.value ? field->placeholder.value : ""
             );
             break;
-        case TFORM_FIELD_CHOICE:
+        case ETFORM_FIELD_CHOICE:
             snprintf(buffer, size, "%s", field->text_value ? field->text_value : "");
             break;
-        case TFORM_FIELD_BOOL:
+        case ETFORM_FIELD_BOOL:
             snprintf(buffer, size, "%s", bool_text(field->bool_value));
             break;
-        case TFORM_FIELD_INT:
+        case ETFORM_FIELD_INT:
             snprintf(buffer, size, "%d", field->int_value);
             break;
-        case TFORM_FIELD_LIST:
+        case ETFORM_FIELD_LIST:
             summarize_list(&field->list_value, buffer, size);
             break;
-        case TFORM_FIELD_CHECKBOX:
+        case ETFORM_FIELD_CHECKBOX:
             summarize_checkbox(field, buffer, size);
             break;
-        case TFORM_FIELD_TEXT_SECTION:
-        case TFORM_FIELD_SEPARATOR:
-        case TFORM_FIELD_SECTION:
+        case ETFORM_FIELD_TEXT_SECTION:
+        case ETFORM_FIELD_SEPARATOR:
+        case ETFORM_FIELD_SECTION:
             snprintf(buffer, size, "%s", field->label.value ? field->label.value : "");
             break;
     }
 }
 
-static int field_is_selectable(TFormField *field) {
-    return field && field->kind != TFORM_FIELD_SEPARATOR &&
-        field->kind != TFORM_FIELD_TEXT_SECTION &&
-        field->kind != TFORM_FIELD_SECTION;
+static int field_is_selectable(ETFormField *field) {
+    return field && field->kind != ETFORM_FIELD_SEPARATOR &&
+        field->kind != ETFORM_FIELD_TEXT_SECTION &&
+        field->kind != ETFORM_FIELD_SECTION;
 }
 
-static int field_is_inline_scrollable(TFormField *field) {
+static int field_is_inline_scrollable(ETFormField *field) {
     if (!field) {
         return 0;
     }
-    return field->kind == TFORM_FIELD_BOOL ||
-        field->kind == TFORM_FIELD_CHOICE ||
-        (field->kind == TFORM_FIELD_INT && field->scrollable);
+    return field->kind == ETFORM_FIELD_BOOL ||
+        field->kind == ETFORM_FIELD_CHOICE ||
+        (field->kind == ETFORM_FIELD_INT && field->scrollable);
 }
 
-static int field_is_numeric(TFormField *field) {
-    return field && field->kind == TFORM_FIELD_INT;
+static int field_is_numeric(ETFormField *field) {
+    return field && field->kind == ETFORM_FIELD_INT;
 }
 
 static long long current_millis(void) {
@@ -482,7 +482,7 @@ static int numeric_scroll_amount(NumericScrollState *state, int field, int key) 
     return 1;
 }
 
-static int selected_index_for_text(TFormField *field) {
+static int selected_index_for_text(ETFormField *field) {
     if (!field || !field->choices || field->choice_count <= 0) {
         return 0;
     }
@@ -495,12 +495,12 @@ static int selected_index_for_text(TFormField *field) {
     return 0;
 }
 
-static int cycle_text_value(TFormField *field, int dir) {
+static int cycle_text_value(ETFormField *field, int dir) {
     if (!field || !field->choices || field->choice_count <= 0) {
         return 0;
     }
     int selected = selected_index_for_text(field);
-    selected = tform_next_form_index(selected, field->choice_count, dir);
+    selected = etform_next_form_index(selected, field->choice_count, dir);
     replace_string(&field->text_value, strdup(field->choices[selected]), 1);
     return 1;
 }
@@ -515,15 +515,15 @@ static int clamp_int(long value, int minimum, int maximum) {
     return (int)value;
 }
 
-static int field_minimum(TFormField *field) {
+static int field_minimum(ETFormField *field) {
     return field && field->has_min ? field->min_value : INT_MIN;
 }
 
-static int field_maximum(TFormField *field) {
+static int field_maximum(ETFormField *field) {
     return field && field->has_max ? field->max_value : INT_MAX;
 }
 
-static void show_int_bounds_error(TFormField *field, long attempted) {
+static void show_int_bounds_error(ETFormField *field, long attempted) {
     char message[160];
     if (!field) {
         return;
@@ -557,18 +557,18 @@ static void show_int_bounds_error(TFormField *field, long attempted) {
         snprintf(message, sizeof(message), "%s is outside the supported integer range.", field->label.value ? field->label.value : "Value");
     }
     (void)attempted;
-    tform_message_dialog(message);
+    etform_message_dialog(message);
 }
 
-static char *open_field_tool(TFormField *field, const char *initial_value) {
+static char *open_field_tool(ETFormField *field, const char *initial_value) {
     if (!field) {
         return NULL;
     }
     if (field->has_calendar) {
-        return tform_calendar_dialog(field->label.value, initial_value);
+        return etform_calendar_dialog(field->label.value, initial_value);
     }
     if (field->has_clock) {
-        return tform_clock_dialog(
+        return etform_clock_dialog(
             field->label.value,
             initial_value,
             field->clock_format_12h,
@@ -576,7 +576,7 @@ static char *open_field_tool(TFormField *field, const char *initial_value) {
         );
     }
     if (field->has_file_picker) {
-        return tform_file_picker_dialog(
+        return etform_file_picker_dialog(
             field->label.value,
             field->file_picker_mode,
             field->file_picker_start_dir
@@ -585,12 +585,12 @@ static char *open_field_tool(TFormField *field, const char *initial_value) {
     return NULL;
 }
 
-static int int_value_in_bounds(TFormField *field, long value) {
+static int int_value_in_bounds(ETFormField *field, long value) {
     return value >= field_minimum(field) && value <= field_maximum(field);
 }
 
-static int scroll_numeric_field(TFormField *field, int dir, int amount) {
-    if (!field || field->kind != TFORM_FIELD_INT) {
+static int scroll_numeric_field(ETFormField *field, int dir, int amount) {
+    if (!field || field->kind != ETFORM_FIELD_INT) {
         return 0;
     }
     if (amount < 1) {
@@ -606,17 +606,17 @@ static int scroll_numeric_field(TFormField *field, int dir, int amount) {
     return 1;
 }
 
-static int cycle_field_value(TFormField *field, int dir, int amount) {
+static int cycle_field_value(ETFormField *field, int dir, int amount) {
     if (!field) {
         return 0;
     }
     switch (field->kind) {
-        case TFORM_FIELD_CHOICE:
+        case ETFORM_FIELD_CHOICE:
             return cycle_text_value(field, dir);
-        case TFORM_FIELD_BOOL:
+        case ETFORM_FIELD_BOOL:
             field->bool_value = !field->bool_value;
             return 1;
-        case TFORM_FIELD_INT:
+        case ETFORM_FIELD_INT:
             return scroll_numeric_field(field, dir, amount);
         default:
             return 0;
@@ -630,9 +630,9 @@ static void draw_input_cursor(WINDOW *win, int y, int x, char ch) {
     if (ch < 32 || ch > 126) {
         ch = ' ';
     }
-    wattron(win, tform_color_pair(TFORM_PAIR_CURSOR_ALT));
+    wattron(win, etform_color_pair(ETFORM_PAIR_CURSOR_ALT));
     mvwaddch(win, y, x, ch);
-    wattroff(win, tform_color_pair(TFORM_PAIR_CURSOR_ALT));
+    wattroff(win, etform_color_pair(ETFORM_PAIR_CURSOR_ALT));
 }
 
 static int read_form_key(WINDOW *win) {
@@ -678,18 +678,18 @@ static int read_form_key(WINDOW *win) {
     }
 }
 
-static void edit_field(TFormField *field) {
+static void edit_field(ETFormField *field) {
     if (!field) {
         return;
     }
     switch (field->kind) {
-        case TFORM_FIELD_TEXT:
+        case ETFORM_FIELD_TEXT:
             break;
-        case TFORM_FIELD_INT:
+        case ETFORM_FIELD_INT:
             if (!field->scrollable) {
                 char initial[64];
                 snprintf(initial, sizeof(initial), "%d", field->int_value);
-                char *value = tform_query_dialog(field->label.value, initial);
+                char *value = etform_query_dialog(field->label.value, initial);
                 if (value) {
                     trim_in_place(value);
                     if (*value) {
@@ -707,20 +707,20 @@ static void edit_field(TFormField *field) {
                 }
             }
             break;
-        case TFORM_FIELD_LIST:
-        case TFORM_FIELD_CHECKBOX:
+        case ETFORM_FIELD_LIST:
+        case ETFORM_FIELD_CHECKBOX:
             break;
-        case TFORM_FIELD_TEXT_SECTION:
-        case TFORM_FIELD_SEPARATOR:
-        case TFORM_FIELD_SECTION:
+        case ETFORM_FIELD_TEXT_SECTION:
+        case ETFORM_FIELD_SEPARATOR:
+        case ETFORM_FIELD_SECTION:
             break;
-        case TFORM_FIELD_CHOICE:
-        case TFORM_FIELD_BOOL:
+        case ETFORM_FIELD_CHOICE:
+        case ETFORM_FIELD_BOOL:
             break;
     }
 }
 
-static int first_selectable_field(TFormObject *form) {
+static int first_selectable_field(ETFormObject *form) {
     if (!form) {
         return -1;
     }
@@ -732,7 +732,7 @@ static int first_selectable_field(TFormObject *form) {
     return -1;
 }
 
-static int adjacent_selectable_field(TFormObject *form, int current, int dir) {
+static int adjacent_selectable_field(ETFormObject *form, int current, int dir) {
     if (!form || form->field_count <= 0 || dir == 0) {
         return -1;
     }
@@ -781,7 +781,7 @@ static size_t text_section_word_wrap_chunk(const char *line, size_t bytes, int w
     if (width <= 0) {
         return bytes;
     }
-    size_t fit = tform_ui_text_bytes_for_width(line, width);
+    size_t fit = etform_ui_text_bytes_for_width(line, width);
     if (fit == 0 || fit > bytes) {
         fit = bytes;
     }
@@ -841,19 +841,19 @@ static int text_section_wrap_line_count(const char *text, int width) {
     return lines > 0 ? lines : 1;
 }
 
-static void table_column_widths(TFormTable *table, int *widths) {
+static void table_column_widths(ETFormTable *table, int *widths) {
     if (!table || !widths) {
         return;
     }
     for (int col = 0; col < table->column_count; col++) {
-        widths[col] = tform_ui_text_width(table->columns[col] ? table->columns[col] : "");
+        widths[col] = etform_ui_text_width(table->columns[col] ? table->columns[col] : "");
     }
     for (int row = 0; row < table->row_count; row++) {
         if (table->rows[row].is_separator) {
             continue;
         }
         for (int col = 0; col < table->column_count; col++) {
-            int width = tform_ui_text_width(table->rows[row].cells[col] ? table->rows[row].cells[col] : "");
+            int width = etform_ui_text_width(table->rows[row].cells[col] ? table->rows[row].cells[col] : "");
             if (width > widths[col]) {
                 widths[col] = width;
             }
@@ -861,7 +861,7 @@ static void table_column_widths(TFormTable *table, int *widths) {
     }
 }
 
-static int table_inner_width_from_columns(TFormTable *table, const int *widths) {
+static int table_inner_width_from_columns(ETFormTable *table, const int *widths) {
     if (!table || table->column_count <= 0 || !widths) {
         return 1;
     }
@@ -883,7 +883,7 @@ static int table_inner_width_from_columns(TFormTable *table, const int *widths) 
     return width;
 }
 
-static int table_draws_body_rule_after(TFormTable *table, int row_index) {
+static int table_draws_body_rule_after(ETFormTable *table, int row_index) {
     if (!table || !table->show_lines || row_index < 0 || row_index + 1 >= table->row_count) {
         return 0;
     }
@@ -893,22 +893,22 @@ static int table_draws_body_rule_after(TFormTable *table, int row_index) {
     return 1;
 }
 
-static int table_draws_separator_rule_before(TFormTable *table, int row_index) {
+static int table_draws_separator_rule_before(ETFormTable *table, int row_index) {
     if (!table || !table->show_lines || row_index <= 0 || row_index >= table->row_count) {
         return 0;
     }
     return table->rows[row_index].is_separator && !table->rows[row_index - 1].is_separator;
 }
 
-static int table_draws_separator_rule_after(TFormTable *table, int row_index) {
+static int table_draws_separator_rule_after(ETFormTable *table, int row_index) {
     if (!table || !table->show_lines || row_index < 0 || row_index + 1 >= table->row_count) {
         return 0;
     }
     return table->rows[row_index].is_separator && !table->rows[row_index + 1].is_separator;
 }
 
-static int table_display_height(TFormTable *table) {
-    int padding = table && table->padding >= 0 ? table->padding : TFORM_DEFAULT_PADDING;
+static int table_display_height(ETFormTable *table) {
+    int padding = table && table->padding >= 0 ? table->padding : ETFORM_DEFAULT_PADDING;
     if (!table || table->column_count <= 0) {
         return 1 + padding * 2;
     }
@@ -931,14 +931,14 @@ static int table_display_height(TFormTable *table) {
     return height + padding * 2;
 }
 
-static int section_element_height(TFormSectionElement *element, int width) {
+static int section_element_height(ETFormSectionElement *element, int width) {
     if (!element) {
         return 0;
     }
-    if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+    if (element->kind == ETFORM_SECTION_ELEMENT_TABLE) {
         return table_display_height(&element->table);
     }
-    if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+    if (element->kind == ETFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
         return element->canvas.char_height + element->canvas_padding * 2;
     }
     if (element->text.wrap_text) {
@@ -947,8 +947,8 @@ static int section_element_height(TFormSectionElement *element, int width) {
     return text_section_line_count(element->text.value);
 }
 
-int tform_static_text_height(
-    const TFormTextStyle *text,
+int etform_static_text_height(
+    const ETFormTextStyle *text,
     int width,
     int wrap_text
 ) {
@@ -958,11 +958,11 @@ int tform_static_text_height(
         : text_section_line_count(text->value);
 }
 
-int tform_static_element_height(TFormSectionElement *element, int width) {
+int etform_static_element_height(ETFormSectionElement *element, int width) {
     return section_element_height(element, width);
 }
 
-static int section_display_height(TFormField *field, int width) {
+static int section_display_height(ETFormField *field, int width) {
     if (!field) {
         return 0;
     }
@@ -986,29 +986,29 @@ static int section_display_height(TFormField *field, int width) {
     return height;
 }
 
-static int field_display_height(TFormField *field, int width) {
-    int padding = field && field->padding >= 0 ? field->padding : TFORM_DEFAULT_PADDING;
+static int field_display_height(ETFormField *field, int width) {
+    int padding = field && field->padding >= 0 ? field->padding : ETFORM_DEFAULT_PADDING;
     int height;
-    if (field && field->kind == TFORM_FIELD_SEPARATOR) {
+    if (field && field->kind == ETFORM_FIELD_SEPARATOR) {
         return 3 + padding * 2;
     }
-    if (field && field->kind == TFORM_FIELD_TEXT_SECTION) {
+    if (field && field->kind == ETFORM_FIELD_TEXT_SECTION) {
         if (field->wrap_text) {
             return text_section_wrap_line_count(field->label.value, width) + padding * 2;
         }
         return text_section_line_count(field->label.value) + padding * 2;
     }
-    if (field && field->kind == TFORM_FIELD_SECTION) {
+    if (field && field->kind == ETFORM_FIELD_SECTION) {
         return section_display_height(field, width) + padding * 2;
     }
-    if (field && field->kind == TFORM_FIELD_LIST) {
+    if (field && field->kind == ETFORM_FIELD_LIST) {
         return (field->list_value.count > 0 ? field->list_value.count : 1) + 3 + padding * 2;
     }
-    if (field && field->kind == TFORM_FIELD_CHECKBOX) {
+    if (field && field->kind == ETFORM_FIELD_CHECKBOX) {
         return (field->checkbox_count > 0 ? field->checkbox_count : 1) + 3 + padding * 2;
     }
     if (field &&
-        field->kind == TFORM_FIELD_TEXT &&
+        field->kind == ETFORM_FIELD_TEXT &&
         field->wrap_text) {
         return text_field_wrap_line_count(field->text_value, field_inner_width(width)) + 3 + padding * 2;
     }
@@ -1017,7 +1017,7 @@ static int field_display_height(TFormField *field, int width) {
     return height;
 }
 
-static int field_top_row(TFormObject *form, int index, int width) {
+static int field_top_row(ETFormObject *form, int index, int width) {
     int row = 1;
     if (!form) {
         return row;
@@ -1028,7 +1028,7 @@ static int field_top_row(TFormObject *form, int index, int width) {
     return row;
 }
 
-static int total_form_rows(TFormObject *form, int width) {
+static int total_form_rows(ETFormObject *form, int width) {
     int rows = 1;
     if (!form) {
         return rows;
@@ -1045,12 +1045,12 @@ static int form_viewport_rows(void) {
     return rows > 0 ? rows : 1;
 }
 
-static int form_max_top(TFormObject *form, int width) {
+static int form_max_top(ETFormObject *form, int width) {
     int max_top = total_form_rows(form, width) - 1 - form_viewport_rows();
     return max_top > 0 ? max_top : 0;
 }
 
-static int field_fully_visible(TFormObject *form, int index, int width, int top) {
+static int field_fully_visible(ETFormObject *form, int index, int width, int top) {
     if (!form || index < 0 || index >= form->field_count) {
         return 0;
     }
@@ -1069,7 +1069,7 @@ static int viewport_scroll_step(void) {
 }
 
 static int scroll_toward_field(
-    TFormObject *form,
+    ETFormObject *form,
     int target,
     int direction,
     int width,
@@ -1103,7 +1103,7 @@ static int scroll_toward_field(
     return field_fully_visible(form, target, width, *top);
 }
 
-static void scroll_document(TFormObject *form, int direction, int width, int *top) {
+static void scroll_document(ETFormObject *form, int direction, int width, int *top) {
     int max_top;
     int step;
 
@@ -1115,7 +1115,7 @@ static void scroll_document(TFormObject *form, int direction, int width, int *to
     if (*top > max_top) *top = max_top;
 }
 
-static void page_document(TFormObject *form, int direction, int width, int *top) {
+static void page_document(ETFormObject *form, int direction, int width, int *top) {
     int max_top;
     int step;
 
@@ -1129,7 +1129,7 @@ static void page_document(TFormObject *form, int direction, int width, int *top)
 }
 
 static int selectable_field_in_view(
-    TFormObject *form,
+    ETFormObject *form,
     int direction,
     int width,
     int top
@@ -1153,7 +1153,7 @@ static int selectable_field_in_view(
     return -1;
 }
 
-static int aligned_text_x(int base_x, int width, int text_width, TFormLabelAlign align, int edge_offset) {
+static int aligned_text_x(int base_x, int width, int text_width, ETFormLabelAlign align, int edge_offset) {
     if (text_width > width) {
         text_width = width;
     }
@@ -1164,45 +1164,45 @@ static int aligned_text_x(int base_x, int width, int text_width, TFormLabelAlign
         edge_offset = width - text_width;
     }
     switch (align) {
-        case TFORM_LABEL_ALIGN_CENTER:
+        case ETFORM_LABEL_ALIGN_CENTER:
             return base_x + ((width - text_width) / 2);
-        case TFORM_LABEL_ALIGN_RIGHT:
+        case ETFORM_LABEL_ALIGN_RIGHT:
             return base_x + width - text_width - edge_offset;
-        case TFORM_LABEL_ALIGN_LEFT:
+        case ETFORM_LABEL_ALIGN_LEFT:
         default:
             return base_x + edge_offset;
     }
 }
 
-static int text_color_pair(TFormTextColor color) {
+static int text_color_pair(ETFormTextColor color) {
     switch (color) {
-        case TFORM_TEXT_COLOR_WHITE:
-            return TFORM_PAIR_NORMAL;
-        case TFORM_TEXT_COLOR_CYAN:
-            return TFORM_PAIR_SYNTAX_KEYWORD;
-        case TFORM_TEXT_COLOR_YELLOW:
-            return TFORM_PAIR_SYNTAX_TYPE;
-        case TFORM_TEXT_COLOR_GREEN:
-            return TFORM_PAIR_SYNTAX_STRING;
-        case TFORM_TEXT_COLOR_BLUE:
-            return TFORM_PAIR_SYNTAX_COMMENT;
-        case TFORM_TEXT_COLOR_MAGENTA:
-            return TFORM_PAIR_SYNTAX_NUMBER;
-        case TFORM_TEXT_COLOR_RED:
-            return TFORM_PAIR_GUTTER_MARKER;
-        case TFORM_TEXT_COLOR_DEFAULT:
+        case ETFORM_TEXT_COLOR_WHITE:
+            return ETFORM_PAIR_NORMAL;
+        case ETFORM_TEXT_COLOR_CYAN:
+            return ETFORM_PAIR_SYNTAX_KEYWORD;
+        case ETFORM_TEXT_COLOR_YELLOW:
+            return ETFORM_PAIR_SYNTAX_TYPE;
+        case ETFORM_TEXT_COLOR_GREEN:
+            return ETFORM_PAIR_SYNTAX_STRING;
+        case ETFORM_TEXT_COLOR_BLUE:
+            return ETFORM_PAIR_SYNTAX_COMMENT;
+        case ETFORM_TEXT_COLOR_MAGENTA:
+            return ETFORM_PAIR_SYNTAX_NUMBER;
+        case ETFORM_TEXT_COLOR_RED:
+            return ETFORM_PAIR_GUTTER_MARKER;
+        case ETFORM_TEXT_COLOR_DEFAULT:
         default:
             return 0;
     }
 }
 
 static int label_default_attr(void) {
-    return has_colors() ? COLOR_PAIR(TFORM_PAIR_SYNTAX_KEYWORD) : A_NORMAL;
+    return has_colors() ? COLOR_PAIR(ETFORM_PAIR_SYNTAX_KEYWORD) : A_NORMAL;
 }
 
-static int text_attr(const TFormTextStyle *style, int default_attr) {
+static int text_attr(const ETFormTextStyle *style, int default_attr) {
     int attr = default_attr;
-    if (style && style->color != TFORM_TEXT_COLOR_DEFAULT && has_colors()) {
+    if (style && style->color != ETFORM_TEXT_COLOR_DEFAULT && has_colors()) {
         attr = COLOR_PAIR(text_color_pair(style->color));
     }
     if (style && style->bold) {
@@ -1246,7 +1246,7 @@ static void draw_text_section(
     int x,
     int width,
     int height,
-    const TFormTextStyle *text,
+    const ETFormTextStyle *text,
     int wrap_text,
     int clip_top,
     int clip_bottom
@@ -1263,34 +1263,34 @@ static void draw_field(
     int text_edit,
     int wrap_text,
     int text_cursor,
-    const TFormTextStyle *label,
-    TFormTextColor field_color,
+    const ETFormTextStyle *label,
+    ETFormTextColor field_color,
     const char *value,
-    const TFormTextStyle *value_style,
+    const ETFormTextStyle *value_style,
     int clip_top,
     int clip_bottom
 ) {
-    TFormTextStyle border_style;
-    tform_text_style_init(&border_style);
+    ETFormTextStyle border_style;
+    etform_text_style_init(&border_style);
     border_style.color = field_color;
-    int border_attr = text_attr(&border_style, tform_color_pair(TFORM_PAIR_NORMAL));
+    int border_attr = text_attr(&border_style, etform_color_pair(ETFORM_PAIR_NORMAL));
     if (selected) {
-        border_attr = has_colors() ? COLOR_PAIR(TFORM_PAIR_FORM_BORDER_SELECTED) | A_BOLD : A_BOLD;
+        border_attr = has_colors() ? COLOR_PAIR(ETFORM_PAIR_FORM_BORDER_SELECTED) | A_BOLD : A_BOLD;
     }
     int label_attr = text_attr(label, label_default_attr());
     if (inputting) {
         label_attr |= A_BOLD;
     }
     const char *label_value = label && label->value ? label->value : "";
-    int label_width = tform_ui_text_width(label_value);
+    int label_width = etform_ui_text_width(label_value);
     if (label_width > width) {
         label_width = width;
     }
-    int label_x = aligned_text_x(x, width, label_width, label ? label->align : TFORM_LABEL_ALIGN_LEFT, 0);
+    int label_x = aligned_text_x(x, width, label_width, label ? label->align : ETFORM_LABEL_ALIGN_LEFT, 0);
     if (y >= clip_top && y < clip_bottom) {
         wattron(win, label_attr);
         wmove(win, y, label_x);
-        tform_ui_text_addstr_width(win, label_value, label_width);
+        etform_ui_text_addstr_width(win, label_value, label_width);
         wattroff(win, label_attr);
     }
 
@@ -1398,7 +1398,7 @@ static void draw_list_items(
     int x,
     int width,
     int height,
-    TFormField *field,
+    ETFormField *field,
     int selected,
     int editing,
     int inputting,
@@ -1408,7 +1408,7 @@ static void draw_list_items(
     if (!win || !field || width <= 4 || height <= 3) {
         return;
     }
-    const TFormStringList *list = &field->list_value;
+    const ETFormStringList *list = &field->list_value;
     int inner_width = field_inner_width(width);
     int rows = height - 3;
     for (int row = 0; row < rows; row++) {
@@ -1427,15 +1427,15 @@ static void draw_list_items(
         }
         if (item_index < list->count) {
             const char *item = list->items[item_index] ? list->items[item_index] : "";
-            const TFormTextStyle *style = item_index < field->list_style_capacity ? &field->list_styles[item_index] : NULL;
-            int item_attr = text_attr(style, tform_color_pair(TFORM_PAIR_NORMAL));
+            const ETFormTextStyle *style = item_index < field->list_style_capacity ? &field->list_styles[item_index] : NULL;
+            int item_attr = text_attr(style, etform_color_pair(ETFORM_PAIR_NORMAL));
             mvwaddch(win, draw_y, draw_x, '-');
             if (inner_width > 1) {
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
             }
             if (inner_width > 2) {
                 int content_width = inner_width - 2;
-                int item_width = tform_ui_text_width(item);
+                int item_width = etform_ui_text_width(item);
                 if (item_width > content_width) {
                     item_width = content_width;
                 }
@@ -1443,12 +1443,12 @@ static void draw_list_items(
                     draw_x + 2,
                     content_width,
                     item_width,
-                    style ? style->align : TFORM_LABEL_ALIGN_LEFT,
+                    style ? style->align : ETFORM_LABEL_ALIGN_LEFT,
                     0
                 );
                 wattron(win, item_attr);
                 wmove(win, draw_y, item_x);
-                tform_ui_text_addstr_width(win, item, item_width);
+                etform_ui_text_addstr_width(win, item, item_width);
                 wattroff(win, item_attr);
             }
             if (inputting && active && inner_width > 2) {
@@ -1464,7 +1464,7 @@ static void draw_list_items(
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
             }
             if (inner_width > 2) {
-                tform_ui_text_addstr_width(win, "(empty)", inner_width - 2);
+                etform_ui_text_addstr_width(win, "(empty)", inner_width - 2);
             }
         }
         if (reverse_row) {
@@ -1473,13 +1473,13 @@ static void draw_list_items(
     }
 }
 
-static const char *checkbox_tick_mark(TFormCheckboxTick tick) {
+static const char *checkbox_tick_mark(ETFormCheckboxTick tick) {
     switch (tick) {
-        case TFORM_CHECKBOX_TICK_BLOCK:
+        case ETFORM_CHECKBOX_TICK_BLOCK:
             return "\xE2\x96\x88";
-        case TFORM_CHECKBOX_TICK_DOT:
+        case ETFORM_CHECKBOX_TICK_DOT:
             return "\xE2\x80\xA2";
-        case TFORM_CHECKBOX_TICK_X:
+        case ETFORM_CHECKBOX_TICK_X:
         default:
             return "x";
     }
@@ -1491,7 +1491,7 @@ static void draw_checkbox_items(
     int x,
     int width,
     int height,
-    TFormField *field,
+    ETFormField *field,
     int selected,
     int editing,
     int clip_top,
@@ -1516,12 +1516,12 @@ static void draw_checkbox_items(
         }
         if (item_index < field->checkbox_count) {
             const char *label = field->checkbox_options[item_index].value ? field->checkbox_options[item_index].value : "";
-            int option_attr = text_attr(&field->checkbox_options[item_index], tform_color_pair(TFORM_PAIR_NORMAL));
+            int option_attr = text_attr(&field->checkbox_options[item_index], etform_color_pair(ETFORM_PAIR_NORMAL));
             mvwaddch(win, draw_y, draw_x, '[');
             if (field->checkbox_checked[item_index]) {
                 wattron(win, A_BOLD);
                 wmove(win, draw_y, draw_x + 1);
-                tform_ui_text_addstr_width(win, checkbox_tick_mark(field->checkbox_tick), 1);
+                etform_ui_text_addstr_width(win, checkbox_tick_mark(field->checkbox_tick), 1);
                 wattroff(win, A_BOLD);
             } else {
                 mvwaddch(win, draw_y, draw_x + 1, ' ');
@@ -1531,7 +1531,7 @@ static void draw_checkbox_items(
                 mvwaddch(win, draw_y, draw_x + 3, ' ');
                 wattron(win, option_attr);
                 int content_width = inner_width - 4;
-                int label_width = tform_ui_text_width(label);
+                int label_width = etform_ui_text_width(label);
                 if (label_width > content_width) {
                     label_width = content_width;
                 }
@@ -1543,11 +1543,11 @@ static void draw_checkbox_items(
                     0
                 );
                 wmove(win, draw_y, label_x);
-                tform_ui_text_addstr_width(win, label, label_width);
+                etform_ui_text_addstr_width(win, label, label_width);
                 wattroff(win, option_attr);
             }
         } else if (field->checkbox_count == 0 && row == 0) {
-            tform_ui_text_addstr_width(win, "(empty)", inner_width);
+            etform_ui_text_addstr_width(win, "(empty)", inner_width);
         }
         if (active) {
             wattroff(win, A_REVERSE);
@@ -1559,15 +1559,15 @@ static void draw_separator(
     WINDOW *win,
     int y,
     int width,
-    const TFormTextStyle *label,
-    TFormTextColor line_color,
+    const ETFormTextStyle *label,
+    ETFormTextColor line_color,
     int clip_top,
     int clip_bottom
 ) {
-    TFormTextStyle line_style;
-    tform_text_style_init(&line_style);
+    ETFormTextStyle line_style;
+    etform_text_style_init(&line_style);
     line_style.color = line_color;
-    int line_attr = text_attr(&line_style, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
+    int line_attr = text_attr(&line_style, etform_color_pair(ETFORM_PAIR_FOOTER_BORDER));
     int label_attr = text_attr(label, label_default_attr());
     int line_y = y + 1;
     if (line_y < clip_top || line_y >= clip_bottom) {
@@ -1578,17 +1578,17 @@ static void draw_separator(
     wattroff(win, line_attr);
     const char *label_value = label && label->value ? label->value : "";
     if (*label_value && width > 8) {
-        int label_width = tform_ui_text_width(label_value);
+        int label_width = etform_ui_text_width(label_value);
         int max_label_width = width - 6;
         if (label_width > max_label_width) {
             label_width = max_label_width;
         }
-        int start = aligned_text_x(0, width, label_width, label ? label->align : TFORM_LABEL_ALIGN_LEFT, 4);
+        int start = aligned_text_x(0, width, label_width, label ? label->align : ETFORM_LABEL_ALIGN_LEFT, 4);
         if (start < width - 4) {
             wattron(win, label_attr);
             mvwaddch(win, line_y, start - 1, ' ');
             wmove(win, line_y, start);
-            int written = tform_ui_text_addstr_width(win, label_value, label_width);
+            int written = etform_ui_text_addstr_width(win, label_value, label_width);
             int end = start + written;
             if (end < width) {
                 mvwaddch(win, line_y, end, ' ');
@@ -1604,7 +1604,7 @@ static void draw_text_section(
     int x,
     int width,
     int height,
-    const TFormTextStyle *text,
+    const ETFormTextStyle *text,
     int wrap_text,
     int clip_top,
     int clip_bottom
@@ -1631,14 +1631,14 @@ static void draw_text_section(
             }
             int draw_y = y + row;
             if (draw_y >= clip_top && draw_y < clip_bottom) {
-                int line_width = tform_ui_text_width_n(line + line_offset, draw_bytes);
+                int line_width = etform_ui_text_width_n(line + line_offset, draw_bytes);
                 if (line_width > width) {
                     line_width = width;
                 }
                 int line_x = aligned_text_x(x, width, line_width, text->align, 0);
                 wattron(win, attr);
                 wmove(win, draw_y, line_x);
-                tform_ui_text_addnstr_width(win, line + line_offset, draw_bytes, line_width);
+                etform_ui_text_addnstr_width(win, line + line_offset, draw_bytes, line_width);
                 wattroff(win, attr);
             }
             row++;
@@ -1659,11 +1659,11 @@ static void draw_text_section(
     }
 }
 
-static int table_rule_width(TFormTable *table, const int *widths) {
+static int table_rule_width(ETFormTable *table, const int *widths) {
     return table_inner_width_from_columns(table, widths);
 }
 
-static void table_fit_widths(TFormTable *table, int *widths, int max_width) {
+static void table_fit_widths(ETFormTable *table, int *widths, int max_width) {
     if (!table || !widths || max_width <= 0) {
         return;
     }
@@ -1695,7 +1695,7 @@ static void draw_table_rule(
     int y,
     int x,
     int max_width,
-    TFormTable *table,
+    ETFormTable *table,
     const int *widths,
     const char *left,
     const char *mid,
@@ -1729,7 +1729,7 @@ static void draw_table_full_rule(
     int y,
     int x,
     int table_width,
-    TFormTable *table,
+    ETFormTable *table,
     const int *widths,
     const char *left,
     const char *join,
@@ -1772,7 +1772,7 @@ static void draw_table_title(
     int y,
     int x,
     int table_width,
-    TFormTable *table,
+    ETFormTable *table,
     int clip_top,
     int clip_bottom
 ) {
@@ -1780,7 +1780,7 @@ static void draw_table_title(
         table_width <= 0 || y < clip_top || y >= clip_bottom) {
         return;
     }
-    int title_width = tform_ui_text_width(table->title.value);
+    int title_width = etform_ui_text_width(table->title.value);
     if (title_width > table_width) {
         title_width = table_width;
     }
@@ -1788,7 +1788,7 @@ static void draw_table_title(
     int attr = text_attr(&table->title, label_default_attr());
     wattron(win, attr);
     wmove(win, y, title_x);
-    tform_ui_text_addstr_width(win, table->title.value, title_width);
+    etform_ui_text_addstr_width(win, table->title.value, title_width);
     wattroff(win, attr);
 }
 
@@ -1797,7 +1797,7 @@ static void draw_table_top_rule(
     int y,
     int x,
     int max_width,
-    TFormTable *table,
+    ETFormTable *table,
     const int *widths,
     int attr,
     int title_attr,
@@ -1830,7 +1830,7 @@ static void draw_table_cells(
     int y,
     int x,
     int max_width,
-    TFormTable *table,
+    ETFormTable *table,
     const int *widths,
     const char **cells,
     const char *left,
@@ -1853,7 +1853,7 @@ static void draw_table_cells(
             waddch(win, ' ');
             wattron(win, cell_attr);
             const char *text = cells[col] ? cells[col] : "";
-            int visible = tform_ui_text_addstr_width(win, text, widths[col]);
+            int visible = etform_ui_text_addstr_width(win, text, widths[col]);
             wattroff(win, cell_attr);
             for (int pad = visible; pad < widths[col] + 1; pad++) {
                 waddch(win, ' ');
@@ -1873,7 +1873,7 @@ static void draw_table_cells(
             }
             wattron(win, cell_attr);
             const char *text = cells[col] ? cells[col] : "";
-            int visible = tform_ui_text_addstr_width(win, text, widths[col]);
+            int visible = etform_ui_text_addstr_width(win, text, widths[col]);
             wattroff(win, cell_attr);
             used += visible;
             for (int pad = visible; pad < widths[col]; pad++) {
@@ -1897,7 +1897,7 @@ static void draw_table_separator_row(
     int y,
     int x,
     int table_width,
-    const TFormTextStyle *label,
+    const ETFormTextStyle *label,
     int border_attr,
     int row_attr,
     int clip_top,
@@ -1929,15 +1929,15 @@ static void draw_table_separator_row(
     if (!*text || content_width <= 0) {
         return;
     }
-    int text_width = tform_ui_text_width(text);
+    int text_width = etform_ui_text_width(text);
     if (text_width > content_width) {
         text_width = content_width;
     }
-    int text_x = aligned_text_x(x + 2, content_width, text_width, label ? label->align : TFORM_LABEL_ALIGN_LEFT, 0);
+    int text_x = aligned_text_x(x + 2, content_width, text_width, label ? label->align : ETFORM_LABEL_ALIGN_LEFT, 0);
     int attr = text_attr(label, row_attr);
     wattron(win, attr);
     wmove(win, y, text_x);
-    tform_ui_text_addstr_width(win, text, text_width);
+    etform_ui_text_addstr_width(win, text, text_width);
     wattroff(win, attr);
 }
 
@@ -1946,7 +1946,7 @@ static void draw_table(
     int y,
     int x,
     int width,
-    TFormTable *table,
+    ETFormTable *table,
     int clip_top,
     int clip_bottom
 ) {
@@ -1963,13 +1963,13 @@ static void draw_table(
     if (table_width > width) {
         table_width = width;
     }
-    int draw_x = aligned_text_x(x, width, table_width, TFORM_LABEL_ALIGN_LEFT, 0);
-    TFormTextStyle border_style;
-    tform_text_style_init(&border_style);
+    int draw_x = aligned_text_x(x, width, table_width, ETFORM_LABEL_ALIGN_LEFT, 0);
+    ETFormTextStyle border_style;
+    etform_text_style_init(&border_style);
     border_style.color = table->color;
-    int border_attr = text_attr(&border_style, tform_color_pair(TFORM_PAIR_FOOTER_BORDER));
-    int header_attr = tform_color_pair(TFORM_PAIR_NORMAL) | A_BOLD;
-    int row_attr = tform_color_pair(TFORM_PAIR_NORMAL);
+    int border_attr = text_attr(&border_style, etform_color_pair(ETFORM_PAIR_FOOTER_BORDER));
+    int header_attr = etform_color_pair(ETFORM_PAIR_NORMAL) | A_BOLD;
+    int row_attr = etform_color_pair(ETFORM_PAIR_NORMAL);
     int row = y + table->padding;
     if (table->title.value && *table->title.value) {
         draw_table_title(win, row++, draw_x, table_width, table, clip_top, clip_bottom);
@@ -2073,7 +2073,7 @@ static void draw_section_box(WINDOW *win, int y, int x, int width, int height, i
     if (!win || width < 2 || height < 2) {
         return;
     }
-    int attr = tform_color_pair(TFORM_PAIR_FOOTER_BORDER);
+    int attr = etform_color_pair(ETFORM_PAIR_FOOTER_BORDER);
     wattron(win, attr);
     if (y >= clip_top && y < clip_bottom) {
         mvwaddch(win, y, x, ACS_ULCORNER);
@@ -2095,7 +2095,7 @@ static void draw_section_box(WINDOW *win, int y, int x, int width, int height, i
     wattroff(win, attr);
 }
 
-void tform_draw_static_box(
+void etform_draw_static_box(
     WINDOW *win,
     int y,
     int x,
@@ -2113,11 +2113,11 @@ static void draw_braille_canvas(
     int x,
     int width,
     BrailleCanvas *canvas,
-    TFormTextColor color,
+    ETFormTextColor color,
     int clip_top,
     int clip_bottom
 ) {
-    TFormTextStyle canvas_style;
+    ETFormTextStyle canvas_style;
     attr_t saved_attrs;
     short saved_pair;
     int fallback_attr;
@@ -2125,9 +2125,9 @@ static void draw_braille_canvas(
     short fallback_pair;
 
     if (!win || !canvas || !canvas->cells || width <= 0) return;
-    tform_text_style_init(&canvas_style);
+    etform_text_style_init(&canvas_style);
     canvas_style.color = color;
-    fallback_attr = text_attr(&canvas_style, tform_color_pair(TFORM_PAIR_NORMAL));
+    fallback_attr = text_attr(&canvas_style, etform_color_pair(ETFORM_PAIR_NORMAL));
     fallback_attrs = (attr_t)(fallback_attr & ~A_COLOR);
     fallback_pair = (short)PAIR_NUMBER(fallback_attr);
     wattr_get(win, &saved_attrs, &saved_pair, NULL);
@@ -2138,7 +2138,7 @@ static void draw_braille_canvas(
         int columns = canvas->char_width < width ? canvas->char_width : width;
         for (int canvas_x = 0; canvas_x < columns; canvas_x++) {
             char glyph[4];
-            short image_pair = tform_image_color_pair(
+            short image_pair = etform_image_color_pair(
                 braille_canvas_cell_color(canvas, canvas_x, canvas_y)
             );
             wattr_set(
@@ -2163,7 +2163,7 @@ static void draw_section(
     int x,
     int width,
     int height,
-    TFormField *field,
+    ETFormField *field,
     int clip_top,
     int clip_bottom
 ) {
@@ -2189,11 +2189,11 @@ static void draw_section(
         if (i > 0) {
             row++;
         }
-        TFormSectionElement *element = &field->section_elements[i];
+        ETFormSectionElement *element = &field->section_elements[i];
         int element_height = section_element_height(element, inner_width);
-        if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+        if (element->kind == ETFORM_SECTION_ELEMENT_TABLE) {
             draw_table(win, row, inner_x, inner_width, &element->table, clip_top, clip_bottom);
-        } else if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+        } else if (element->kind == ETFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
             int canvas_y = row + element->canvas_padding;
             int visible_top = canvas_y < clip_top ? clip_top : canvas_y;
             int visible_bottom = canvas_y + element->canvas.char_height;
@@ -2227,13 +2227,13 @@ static void draw_section(
     }
 }
 
-void tform_draw_static_text(
+void etform_draw_static_text(
     WINDOW *win,
     int y,
     int x,
     int width,
     int height,
-    const TFormTextStyle *text,
+    const ETFormTextStyle *text,
     int wrap_text,
     int clip_top,
     int clip_bottom
@@ -2243,21 +2243,21 @@ void tform_draw_static_text(
     );
 }
 
-void tform_draw_static_element(
+void etform_draw_static_element(
     WINDOW *win,
     int y,
     int x,
     int width,
-    TFormSectionElement *element,
+    ETFormSectionElement *element,
     int clip_top,
     int clip_bottom
 ) {
     if (!element || width <= 0) return;
-    if (element->kind == TFORM_SECTION_ELEMENT_TABLE) {
+    if (element->kind == ETFORM_SECTION_ELEMENT_TABLE) {
         draw_table(
             win, y, x, width, &element->table, clip_top, clip_bottom
         );
-    } else if (element->kind == TFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
+    } else if (element->kind == ETFORM_SECTION_ELEMENT_BRAILLE_CANVAS) {
         draw_braille_canvas(
             win,
             y + element->canvas_padding,
@@ -2300,18 +2300,18 @@ static void draw_selection_pointer(WINDOW *win, int field_y, int field_height, i
         pointer_y = body_h - 1;
     }
     int pointer_x = form_x >= 2 ? form_x - 2 : 0;
-    int attr = has_colors() ? COLOR_PAIR(TFORM_PAIR_GUTTER_MARKER) | A_BOLD : A_BOLD;
+    int attr = has_colors() ? COLOR_PAIR(ETFORM_PAIR_GUTTER_MARKER) | A_BOLD : A_BOLD;
     wattron(win, attr);
     mvwaddch(win, pointer_y, pointer_x, '>');
     wattroff(win, attr);
 }
 
 static void draw_form(
-    TFormPmNode *main_panel,
-    TFormPmNode *footer_panel,
-    TFormObject *form,
+    ETFormPmNode *main_panel,
+    ETFormPmNode *footer_panel,
+    ETFormObject *form,
     int selected,
-    TFormEditMode edit_mode,
+    ETFormEditMode edit_mode,
     int text_cursor,
     int list_selected,
     int list_inputting,
@@ -2324,15 +2324,15 @@ static void draw_form(
     if (footer_h < 1) {
         footer_h = 1;
     }
-    tform_pm_resize(main_panel, body_h, COLS);
-    tform_pm_resize(footer_panel, footer_h, COLS);
-    tform_pm_move(footer_panel, body_h, 0);
+    etform_pm_resize(main_panel, body_h, COLS);
+    etform_pm_resize(footer_panel, footer_h, COLS);
+    etform_pm_move(footer_panel, body_h, 0);
     werase(main_panel->win);
-    wbkgd(main_panel->win, tform_color_pair(TFORM_PAIR_NORMAL));
-    wattron(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
+    wbkgd(main_panel->win, etform_color_pair(ETFORM_PAIR_NORMAL));
+    wattron(main_panel->win, etform_color_pair(ETFORM_PAIR_HEADER));
     mvwhline(main_panel->win, 0, 0, ' ', COLS);
-    mvwprintw(main_panel->win, 0, 1, "%.*s", COLS - 2, form->title ? form->title : "TForm");
-    wattroff(main_panel->win, tform_color_pair(TFORM_PAIR_HEADER));
+    mvwprintw(main_panel->win, 0, 1, "%.*s", COLS - 2, form->title ? form->title : "ETForm");
+    wattroff(main_panel->win, etform_color_pair(ETFORM_PAIR_HEADER));
 
     int form_width = form_width_from_cols();
     int form_x = (COLS - form_width) / 2;
@@ -2365,7 +2365,7 @@ static void draw_form(
     for (int index = 0; index < form->field_count; index++) {
         int y = field_top_row(form, index, form_width) - *top;
         int height = field_display_height(&form->fields[index], form_width);
-        int padding = form->fields[index].padding >= 0 ? form->fields[index].padding : TFORM_DEFAULT_PADDING;
+        int padding = form->fields[index].padding >= 0 ? form->fields[index].padding : ETFORM_DEFAULT_PADDING;
         int content_y = y + padding;
         int content_height = height - padding * 2;
         if (y + height <= 1 || y >= body_h ||
@@ -2373,7 +2373,7 @@ static void draw_form(
             content_height <= 0) {
             continue;
         }
-        if (form->fields[index].kind == TFORM_FIELD_SEPARATOR) {
+        if (form->fields[index].kind == ETFORM_FIELD_SEPARATOR) {
             draw_separator(
                 main_panel->win,
                 content_y,
@@ -2385,7 +2385,7 @@ static void draw_form(
             );
             continue;
         }
-        if (form->fields[index].kind == TFORM_FIELD_TEXT_SECTION) {
+        if (form->fields[index].kind == ETFORM_FIELD_TEXT_SECTION) {
             draw_text_section(
                 main_panel->win,
                 content_y,
@@ -2399,7 +2399,7 @@ static void draw_form(
             );
             continue;
         }
-        if (form->fields[index].kind == TFORM_FIELD_SECTION) {
+        if (form->fields[index].kind == ETFORM_FIELD_SECTION) {
             draw_section(
                 main_panel->win,
                 content_y,
@@ -2413,21 +2413,21 @@ static void draw_form(
             continue;
         }
         char value[1024];
-        if (form->fields[index].kind == TFORM_FIELD_LIST) {
+        if (form->fields[index].kind == ETFORM_FIELD_LIST) {
             value[0] = '\0';
-        } else if (form->fields[index].kind == TFORM_FIELD_CHECKBOX) {
+        } else if (form->fields[index].kind == ETFORM_FIELD_CHECKBOX) {
             value[0] = '\0';
         } else {
             field_value(&form->fields[index], value, sizeof(value));
         }
-        if (form->fields[index].kind == TFORM_FIELD_TEXT &&
-            edit_mode == TFORM_EDIT_TEXT &&
+        if (form->fields[index].kind == ETFORM_FIELD_TEXT &&
+            edit_mode == ETFORM_EDIT_TEXT &&
             index == selected) {
             snprintf(value, sizeof(value), "%s", form->fields[index].text_value ? form->fields[index].text_value : "");
         }
-        const TFormTextStyle *value_style = NULL;
-        if (form->fields[index].kind == TFORM_FIELD_TEXT &&
-            !(edit_mode == TFORM_EDIT_TEXT && index == selected) &&
+        const ETFormTextStyle *value_style = NULL;
+        if (form->fields[index].kind == ETFORM_FIELD_TEXT &&
+            !(edit_mode == ETFORM_EDIT_TEXT && index == selected) &&
             (!form->fields[index].text_value || !*form->fields[index].text_value) &&
             form->fields[index].placeholder.value &&
             *form->fields[index].placeholder.value) {
@@ -2440,8 +2440,8 @@ static void draw_form(
             form_width,
             content_height,
             selection_active && index == selected,
-            selection_active && edit_mode != TFORM_EDIT_NONE && index == selected,
-            selection_active && edit_mode == TFORM_EDIT_TEXT && index == selected,
+            selection_active && edit_mode != ETFORM_EDIT_NONE && index == selected,
+            selection_active && edit_mode == ETFORM_EDIT_TEXT && index == selected,
             form->fields[index].wrap_text,
             selection_active && index == selected ? text_cursor : 0,
             &form->fields[index].label,
@@ -2451,7 +2451,7 @@ static void draw_form(
             1,
             body_h
         );
-        if (form->fields[index].kind == TFORM_FIELD_LIST) {
+        if (form->fields[index].kind == ETFORM_FIELD_LIST) {
             draw_list_items(
                 main_panel->win,
                 content_y,
@@ -2460,13 +2460,13 @@ static void draw_form(
                 content_height,
                 &form->fields[index],
                 list_selected,
-                edit_mode == TFORM_EDIT_LIST && index == selected,
-                edit_mode == TFORM_EDIT_LIST && list_inputting && index == selected,
+                edit_mode == ETFORM_EDIT_LIST && index == selected,
+                edit_mode == ETFORM_EDIT_LIST && list_inputting && index == selected,
                 1,
                 body_h
             );
         }
-        if (form->fields[index].kind == TFORM_FIELD_CHECKBOX) {
+        if (form->fields[index].kind == ETFORM_FIELD_CHECKBOX) {
             draw_checkbox_items(
                 main_panel->win,
                 content_y,
@@ -2475,7 +2475,7 @@ static void draw_form(
                 content_height,
                 &form->fields[index],
                 checkbox_selected,
-                edit_mode == TFORM_EDIT_CHECKBOX && index == selected,
+                edit_mode == ETFORM_EDIT_CHECKBOX && index == selected,
                 1,
                 body_h
             );
@@ -2484,43 +2484,43 @@ static void draw_form(
             draw_selection_pointer(main_panel->win, content_y, content_height, form_x, body_h);
         }
     }
-    if (edit_mode == TFORM_EDIT_TEXT) {
-        TFormField *field = &form->fields[selected];
+    if (edit_mode == ETFORM_EDIT_TEXT) {
+        ETFormField *field = &form->fields[selected];
         if (field->wrap_text) {
-            tform_ui_draw_footer(footer_panel->win, "[Arrows] Move  [Enter] Done  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Clear");
+            etform_ui_draw_footer(footer_panel->win, "[Arrows] Move  [Enter] Done  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Clear");
         } else {
-            tform_ui_draw_footer(footer_panel->win, "[Left/Right] Move  [Enter] Done  [Ctrl+V] Paste  [Esc] Clear");
+            etform_ui_draw_footer(footer_panel->win, "[Left/Right] Move  [Enter] Done  [Ctrl+V] Paste  [Esc] Clear");
         }
-    } else if (edit_mode == TFORM_EDIT_SCROLL) {
-        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Value  [Enter] Done  [Esc] Done  [Ctrl+S] Save");
-    } else if (edit_mode == TFORM_EDIT_LIST) {
-        TFormField *field = &form->fields[selected];
+    } else if (edit_mode == ETFORM_EDIT_SCROLL) {
+        etform_ui_draw_footer(footer_panel->win, "[Up/Down] Value  [Enter] Done  [Esc] Done  [Ctrl+S] Save");
+    } else if (edit_mode == ETFORM_EDIT_LIST) {
+        ETFormField *field = &form->fields[selected];
         if (list_inputting) {
-            tform_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
+            etform_ui_draw_footer(footer_panel->win, "Entry  [Ctrl+E] Done  [Ctrl+V] Paste  [Esc] Exit");
         } else if (field->has_calendar) {
-            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
+            etform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Date  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_clock) {
-            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Time  [E] Replace  [D] Delete  [Esc] Exit");
+            etform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick Time  [E] Replace  [D] Delete  [Esc] Exit");
         } else if (field->has_file_picker) {
-            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
+            etform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Pick  [E] Replace  [D] Delete  [Esc] Exit");
         } else {
-            tform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Add  [E] Edit  [D] Delete  [Esc] Exit");
+            etform_ui_draw_footer(footer_panel->win, "[Up/Down] Item  [A] Add  [E] Edit  [D] Delete  [Esc] Exit");
         }
-    } else if (edit_mode == TFORM_EDIT_CHECKBOX) {
-        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
+    } else if (edit_mode == ETFORM_EDIT_CHECKBOX) {
+        etform_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
     } else if (!selection_active) {
-        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
+        etform_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
     } else {
-        tform_ui_draw_footer(footer_panel->win, "[Up/Down] Field  [Enter] Edit  [I] Info  [Ctrl+S] Save  [Q] Exit");
+        etform_ui_draw_footer(footer_panel->win, "[Up/Down] Field  [Enter] Edit  [I] Info  [Ctrl+S] Save  [Q] Exit");
     }
-    tform_pm_wnoutrefresh(main_panel);
-    tform_pm_wnoutrefresh(footer_panel);
-    tform_pm_update();
+    etform_pm_wnoutrefresh(main_panel);
+    etform_pm_wnoutrefresh(footer_panel);
+    etform_pm_update();
 }
 
-int tform_run_form(TFormObject *form) {
+int etform_run_form(ETFormObject *form) {
     setlocale(LC_ALL, "");
-    tform_disable_flow_control();
+    etform_disable_flow_control();
     setenv("TERM", "xterm-256color", 0);
     initscr();
     cbreak();
@@ -2528,18 +2528,18 @@ int tform_run_form(TFormObject *form) {
     keypad(stdscr, TRUE);
     set_escdelay(25);
     curs_set(0);
-    tform_init_editor_theme();
-    tform_pm_init();
+    etform_init_editor_theme();
+    etform_pm_init();
 
     int body_h = LINES > 4 ? LINES - 3 : LINES - 1;
     int footer_h = LINES - body_h;
     if (footer_h < 1) {
         footer_h = 1;
     }
-    TFormPmNode *main_panel = tform_pm_add(0, 0, body_h, COLS, TFORM_PM_LAYER_MAIN, TFORM_PM_LAYER_MAIN);
-    TFormPmNode *footer_panel = tform_pm_add(body_h, 0, footer_h, COLS, TFORM_PM_LAYER_FOOTER, TFORM_PM_LAYER_FOOTER);
+    ETFormPmNode *main_panel = etform_pm_add(0, 0, body_h, COLS, ETFORM_PM_LAYER_MAIN, ETFORM_PM_LAYER_MAIN);
+    ETFormPmNode *footer_panel = etform_pm_add(body_h, 0, footer_h, COLS, ETFORM_PM_LAYER_FOOTER, ETFORM_PM_LAYER_FOOTER);
     if (!main_panel || !footer_panel) {
-        tform_pm_teardown();
+        etform_pm_teardown();
         endwin();
         return -1;
     }
@@ -2559,7 +2559,7 @@ int tform_run_form(TFormObject *form) {
     int list_selected = 0;
     int list_inputting = 0;
     int checkbox_selected = 0;
-    TFormEditMode edit_mode = TFORM_EDIT_NONE;
+    ETFormEditMode edit_mode = ETFORM_EDIT_NONE;
     NumericScrollState numeric_scroll;
     reset_numeric_scroll(&numeric_scroll);
     int result = 0;
@@ -2578,8 +2578,8 @@ int tform_run_form(TFormObject *form) {
             &top
         );
         int ch = read_form_key(main_panel->win);
-        if (edit_mode == TFORM_EDIT_TEXT) {
-            TFormField *field = &form->fields[selected];
+        if (edit_mode == ETFORM_EDIT_TEXT) {
+            ETFormField *field = &form->fields[selected];
             int max_cols = field_inner_width(form_width_from_cols());
             int length = field->text_value ? (int)strlen(field->text_value) : 0;
             if (text_cursor < 0) {
@@ -2591,10 +2591,10 @@ int tform_run_form(TFormObject *form) {
             if (ch == 27) {
                 text_field_clear(field);
                 text_cursor = 0;
-                edit_mode = TFORM_EDIT_NONE;
+                edit_mode = ETFORM_EDIT_NONE;
                 reset_numeric_scroll(&numeric_scroll);
             } else if (ch == CTRL_E || ch == '\n' || ch == KEY_ENTER) {
-                edit_mode = TFORM_EDIT_NONE;
+                edit_mode = ETFORM_EDIT_NONE;
                 reset_numeric_scroll(&numeric_scroll);
             } else if (ch == KEY_LEFT) {
                 text_field_move_cursor(field, &text_cursor, -1, max_cols);
@@ -2626,12 +2626,12 @@ int tform_run_form(TFormObject *form) {
             }
             continue;
         }
-        if (edit_mode == TFORM_EDIT_SCROLL) {
+        if (edit_mode == ETFORM_EDIT_SCROLL) {
             if (ch == '\n' || ch == KEY_ENTER || ch == 27) {
-                edit_mode = TFORM_EDIT_NONE;
+                edit_mode = ETFORM_EDIT_NONE;
                 reset_numeric_scroll(&numeric_scroll);
             } else if (ch == KEY_UP || ch == KEY_DOWN) {
-                TFormField *field = &form->fields[selected];
+                ETFormField *field = &form->fields[selected];
                 int amount = field_is_numeric(field) ? numeric_scroll_amount(&numeric_scroll, selected, ch) : 1;
                 cycle_field_value(field, ch == KEY_UP ? 1 : -1, amount);
             } else if (ch == CTRL_S) {
@@ -2640,8 +2640,8 @@ int tform_run_form(TFormObject *form) {
             }
             continue;
         }
-        if (edit_mode == TFORM_EDIT_LIST) {
-            TFormField *field = &form->fields[selected];
+        if (edit_mode == ETFORM_EDIT_LIST) {
+            ETFormField *field = &form->fields[selected];
             int max_cols = field_inner_width(form_width_from_cols());
             if (field->list_value.count <= 0) {
                 list_selected = 0;
@@ -2655,7 +2655,7 @@ int tform_run_form(TFormObject *form) {
                 } else if (ch == 27) {
                     list_field_prune_empty(field, &list_selected);
                     list_inputting = 0;
-                    edit_mode = TFORM_EDIT_NONE;
+                    edit_mode = ETFORM_EDIT_NONE;
                     reset_numeric_scroll(&numeric_scroll);
                 } else if (ch == CTRL_V) {
                     char *clipboard = read_clipboard_text();
@@ -2676,24 +2676,24 @@ int tform_run_form(TFormObject *form) {
             }
             if (ch == 27 || ch == CTRL_E) {
                 list_field_prune_empty(field, &list_selected);
-                edit_mode = TFORM_EDIT_NONE;
+                edit_mode = ETFORM_EDIT_NONE;
                 list_inputting = 0;
                 reset_numeric_scroll(&numeric_scroll);
             } else if (ch == KEY_UP && field->list_value.count > 0) {
-                list_selected = tform_next_form_index(list_selected, field->list_value.count, -1);
+                list_selected = etform_next_form_index(list_selected, field->list_value.count, -1);
             } else if (ch == KEY_DOWN && field->list_value.count > 0) {
-                list_selected = tform_next_form_index(list_selected, field->list_value.count, 1);
+                list_selected = etform_next_form_index(list_selected, field->list_value.count, 1);
             } else if (ch == 'a' || ch == 'A') {
                 if (field->has_calendar || field->has_clock || field->has_file_picker) {
                     char *value = open_field_tool(field, NULL);
                     if (value) {
                         trim_in_place(value);
-                        if (*value && tform_list_append_value(field, value, NULL) == 0) {
+                        if (*value && etform_list_append_value(field, value, NULL) == 0) {
                             list_selected = field->list_value.count - 1;
                         }
                         free(value);
                     }
-                } else if (tform_list_append_value(field, " ", NULL) == 0) {
+                } else if (etform_list_append_value(field, " ", NULL) == 0) {
                     list_selected = field->list_value.count - 1;
                     field->list_value.items[list_selected][0] = '\0';
                     if (field->list_styles && field->list_styles[list_selected].value) {
@@ -2710,7 +2710,7 @@ int tform_run_form(TFormObject *form) {
                     if (value) {
                         trim_in_place(value);
                         if (*value) {
-                            tform_list_set_value(field, list_selected, value, NULL);
+                            etform_list_set_value(field, list_selected, value, NULL);
                         }
                         free(value);
                     }
@@ -2718,7 +2718,7 @@ int tform_run_form(TFormObject *form) {
                     list_inputting = 1;
                 }
             } else if ((ch == 'd' || ch == 'D') && field->list_value.count > 0) {
-                tform_list_delete_value(field, list_selected);
+                etform_list_delete_value(field, list_selected);
                 if (list_selected >= field->list_value.count) {
                     list_selected = field->list_value.count - 1;
                 }
@@ -2732,20 +2732,20 @@ int tform_run_form(TFormObject *form) {
             }
             continue;
         }
-        if (edit_mode == TFORM_EDIT_CHECKBOX) {
-            TFormField *field = &form->fields[selected];
+        if (edit_mode == ETFORM_EDIT_CHECKBOX) {
+            ETFormField *field = &form->fields[selected];
             if (field->checkbox_count <= 0) {
                 checkbox_selected = 0;
             } else if (checkbox_selected < 0 || checkbox_selected >= field->checkbox_count) {
                 checkbox_selected = 0;
             }
             if (ch == 27 || ch == CTRL_E) {
-                edit_mode = TFORM_EDIT_NONE;
+                edit_mode = ETFORM_EDIT_NONE;
                 reset_numeric_scroll(&numeric_scroll);
             } else if (ch == KEY_UP && field->checkbox_count > 0) {
-                checkbox_selected = tform_next_form_index(checkbox_selected, field->checkbox_count, -1);
+                checkbox_selected = etform_next_form_index(checkbox_selected, field->checkbox_count, -1);
             } else if (ch == KEY_DOWN && field->checkbox_count > 0) {
-                checkbox_selected = tform_next_form_index(checkbox_selected, field->checkbox_count, 1);
+                checkbox_selected = etform_next_form_index(checkbox_selected, field->checkbox_count, 1);
             } else if ((ch == ' ' || ch == '\n' || ch == KEY_ENTER) && field->checkbox_count > 0) {
                 field->checkbox_checked[checkbox_selected] = !field->checkbox_checked[checkbox_selected];
             } else if (ch == CTRL_S) {
@@ -2886,38 +2886,38 @@ int tform_run_form(TFormObject *form) {
             }
         } else if ((ch == '\n' || ch == KEY_ENTER) && field_is_selectable(&form->fields[selected])) {
             if (field_is_inline_scrollable(&form->fields[selected])) {
-                edit_mode = TFORM_EDIT_SCROLL;
+                edit_mode = ETFORM_EDIT_SCROLL;
                 reset_numeric_scroll(&numeric_scroll);
-            } else if (form->fields[selected].kind == TFORM_FIELD_TEXT) {
-                TFormField *field = &form->fields[selected];
+            } else if (form->fields[selected].kind == ETFORM_FIELD_TEXT) {
+                ETFormField *field = &form->fields[selected];
                 if (field->has_calendar || field->has_clock || field->has_file_picker) {
                     char *value = open_field_tool(field, field->text_value);
                     if (value) {
                         replace_string(&field->text_value, value, 1);
                     }
                 } else {
-                    edit_mode = TFORM_EDIT_TEXT;
+                    edit_mode = ETFORM_EDIT_TEXT;
                     text_cursor = form->fields[selected].text_value ? (int)strlen(form->fields[selected].text_value) : 0;
                 }
-            } else if (form->fields[selected].kind == TFORM_FIELD_LIST) {
+            } else if (form->fields[selected].kind == ETFORM_FIELD_LIST) {
                 list_selected = form->fields[selected].list_value.count > 0 ? 0 : 0;
                 list_inputting = 0;
-                edit_mode = TFORM_EDIT_LIST;
-            } else if (form->fields[selected].kind == TFORM_FIELD_CHECKBOX) {
+                edit_mode = ETFORM_EDIT_LIST;
+            } else if (form->fields[selected].kind == ETFORM_FIELD_CHECKBOX) {
                 checkbox_selected = form->fields[selected].checkbox_count > 0 ? 0 : 0;
-                edit_mode = TFORM_EDIT_CHECKBOX;
+                edit_mode = ETFORM_EDIT_CHECKBOX;
             } else {
                 edit_field(&form->fields[selected]);
             }
         } else if ((ch == 'i' || ch == 'I') && field_is_selectable(&form->fields[selected])) {
-            tform_readonly_dialog(form->fields[selected].label.value, form->fields[selected].description);
+            etform_readonly_dialog(form->fields[selected].label.value, form->fields[selected].description);
         } else if (ch == CTRL_S) {
             result = 1;
             break;
         }
     }
 
-    tform_pm_teardown();
+    etform_pm_teardown();
     endwin();
     return result;
 }

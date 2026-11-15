@@ -28,11 +28,11 @@ static int parse_nonnegative(PyObject *value, int fallback, const char *name, in
     return 0;
 }
 
-static int paragraph_ensure_capacity(TFormParagraphObject *self, Py_ssize_t needed) {
+static int paragraph_ensure_capacity(ETFormParagraphObject *self, Py_ssize_t needed) {
     if (self->run_capacity >= needed) return 0;
     Py_ssize_t capacity = self->run_capacity ? self->run_capacity * 2 : 4;
     while (capacity < needed) capacity *= 2;
-    TFormParagraphRun *runs = realloc(self->runs, (size_t)capacity * sizeof(*runs));
+    ETFormParagraphRun *runs = realloc(self->runs, (size_t)capacity * sizeof(*runs));
     if (!runs) {
         PyErr_NoMemory();
         return -1;
@@ -47,16 +47,16 @@ static int paragraph_ensure_capacity(TFormParagraphObject *self, Py_ssize_t need
     return 0;
 }
 
-static int paragraph_append_run(TFormParagraphObject *self, PyObject *object) {
-    if (!PyUnicode_Check(object) && !PyObject_TypeCheck(object, &TFormTextType)) {
+static int paragraph_append_run(ETFormParagraphObject *self, PyObject *object) {
+    if (!PyUnicode_Check(object) && !PyObject_TypeCheck(object, &ETFormTextType)) {
         PyErr_SetString(PyExc_TypeError, "Paragraph parts must be str or Text");
         return -1;
     }
     if (paragraph_ensure_capacity(self, self->run_count + 1) < 0) return -1;
-    TFormParagraphRun *run = &self->runs[self->run_count++];
-    run->kind = PyObject_TypeCheck(object, &TFormTextType)
-        ? TFORM_PARAGRAPH_RUN_TEXT
-        : TFORM_PARAGRAPH_RUN_STRING;
+    ETFormParagraphRun *run = &self->runs[self->run_count++];
+    run->kind = PyObject_TypeCheck(object, &ETFormTextType)
+        ? ETFORM_PARAGRAPH_RUN_TEXT
+        : ETFORM_PARAGRAPH_RUN_STRING;
     Py_INCREF(object);
     run->object = object;
     return 0;
@@ -65,7 +65,7 @@ static int paragraph_append_run(TFormParagraphObject *self, PyObject *object) {
 static PyObject *Paragraph_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormParagraphObject *self = (TFormParagraphObject *)type->tp_alloc(type, 0);
+    ETFormParagraphObject *self = (ETFormParagraphObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->runs = NULL;
     self->run_count = 0;
@@ -73,7 +73,7 @@ static PyObject *Paragraph_new(PyTypeObject *type, PyObject *args, PyObject *kwa
     return (PyObject *)self;
 }
 
-static int Paragraph_init(TFormParagraphObject *self, PyObject *args, PyObject *kwargs) {
+static int Paragraph_init(ETFormParagraphObject *self, PyObject *args, PyObject *kwargs) {
     if (kwargs && PyDict_Size(kwargs) > 0) {
         PyErr_SetString(PyExc_TypeError, "Paragraph does not accept keyword arguments");
         return -1;
@@ -91,14 +91,14 @@ static int Paragraph_init(TFormParagraphObject *self, PyObject *args, PyObject *
     return 0;
 }
 
-static int Paragraph_traverse(TFormParagraphObject *self, visitproc visit, void *arg) {
+static int Paragraph_traverse(ETFormParagraphObject *self, visitproc visit, void *arg) {
     for (Py_ssize_t i = 0; i < self->run_count; i++) {
         Py_VISIT(self->runs[i].object);
     }
     return 0;
 }
 
-static int Paragraph_clear(TFormParagraphObject *self) {
+static int Paragraph_clear(ETFormParagraphObject *self) {
     for (Py_ssize_t i = 0; i < self->run_count; i++) {
         Py_CLEAR(self->runs[i].object);
     }
@@ -106,21 +106,21 @@ static int Paragraph_clear(TFormParagraphObject *self) {
     return 0;
 }
 
-static void Paragraph_dealloc(TFormParagraphObject *self) {
+static void Paragraph_dealloc(ETFormParagraphObject *self) {
     PyObject_GC_UnTrack(self);
     Paragraph_clear(self);
     free(self->runs);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *Paragraph_repr(TFormParagraphObject *self) {
+static PyObject *Paragraph_repr(ETFormParagraphObject *self) {
     return PyUnicode_FromFormat("Paragraph(parts=%zd)", self->run_count);
 }
 
-PyTypeObject TFormParagraphType = {
+PyTypeObject ETFormParagraphType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.Paragraph",
-    .tp_basicsize = sizeof(TFormParagraphObject),
+    .tp_name = "etform.Paragraph",
+    .tp_basicsize = sizeof(ETFormParagraphObject),
     .tp_dealloc = (destructor)Paragraph_dealloc,
     .tp_repr = (reprfunc)Paragraph_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -132,21 +132,21 @@ PyTypeObject TFormParagraphType = {
 };
 
 static PyObject *paragraph_from_object(PyObject *object) {
-    if (PyObject_TypeCheck(object, &TFormParagraphType)) {
+    if (PyObject_TypeCheck(object, &ETFormParagraphType)) {
         return Py_NewRef(object);
     }
-    if (PyUnicode_Check(object) || PyObject_TypeCheck(object, &TFormTextType)) {
-        return PyObject_CallFunctionObjArgs((PyObject *)&TFormParagraphType, object, NULL);
+    if (PyUnicode_Check(object) || PyObject_TypeCheck(object, &ETFormTextType)) {
+        return PyObject_CallFunctionObjArgs((PyObject *)&ETFormParagraphType, object, NULL);
     }
     PyErr_SetString(PyExc_TypeError, "value must be str, Text, or Paragraph");
     return NULL;
 }
 
-static int list_ensure_capacity(TFormDocListObject *self, Py_ssize_t needed) {
+static int list_ensure_capacity(ETFormDocListObject *self, Py_ssize_t needed) {
     if (self->item_capacity >= needed) return 0;
     Py_ssize_t capacity = self->item_capacity ? self->item_capacity * 2 : 4;
     while (capacity < needed) capacity *= 2;
-    TFormDocListItem *items = realloc(self->items, (size_t)capacity * sizeof(*items));
+    ETFormDocListItem *items = realloc(self->items, (size_t)capacity * sizeof(*items));
     if (!items) {
         PyErr_NoMemory();
         return -1;
@@ -161,17 +161,17 @@ static int list_ensure_capacity(TFormDocListObject *self, Py_ssize_t needed) {
     return 0;
 }
 
-static int list_append_item(TFormDocListObject *self, PyObject *object) {
-    TFormDocListItemKind kind;
+static int list_append_item(ETFormDocListObject *self, PyObject *object) {
+    ETFormDocListItemKind kind;
     PyObject *stored = NULL;
-    if (PyObject_TypeCheck(object, &TFormOrderedListType)) {
-        kind = TFORM_DOC_LIST_ITEM_ORDERED_LIST;
+    if (PyObject_TypeCheck(object, &ETFormOrderedListType)) {
+        kind = ETFORM_DOC_LIST_ITEM_ORDERED_LIST;
         stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormUnorderedListType)) {
-        kind = TFORM_DOC_LIST_ITEM_UNORDERED_LIST;
+    } else if (PyObject_TypeCheck(object, &ETFormUnorderedListType)) {
+        kind = ETFORM_DOC_LIST_ITEM_UNORDERED_LIST;
         stored = Py_NewRef(object);
     } else {
-        kind = TFORM_DOC_LIST_ITEM_PARAGRAPH;
+        kind = ETFORM_DOC_LIST_ITEM_PARAGRAPH;
         stored = paragraph_from_object(object);
     }
     if (!stored) return -1;
@@ -179,7 +179,7 @@ static int list_append_item(TFormDocListObject *self, PyObject *object) {
         Py_DECREF(stored);
         return -1;
     }
-    TFormDocListItem *item = &self->items[self->item_count++];
+    ETFormDocListItem *item = &self->items[self->item_count++];
     item->kind = kind;
     item->object = stored;
     return 0;
@@ -188,16 +188,16 @@ static int list_append_item(TFormDocListObject *self, PyObject *object) {
 static PyObject *DocList_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormDocListObject *self = (TFormDocListObject *)type->tp_alloc(type, 0);
+    ETFormDocListObject *self = (ETFormDocListObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->items = NULL;
     self->item_count = 0;
     self->item_capacity = 0;
-    self->ordered = type == &TFormOrderedListType;
+    self->ordered = type == &ETFormOrderedListType;
     return (PyObject *)self;
 }
 
-static int DocList_init(TFormDocListObject *self, PyObject *args, PyObject *kwargs) {
+static int DocList_init(ETFormDocListObject *self, PyObject *args, PyObject *kwargs) {
     if (kwargs && PyDict_Size(kwargs) > 0) {
         PyErr_SetString(PyExc_TypeError, "list renderables do not accept keyword arguments");
         return -1;
@@ -215,14 +215,14 @@ static int DocList_init(TFormDocListObject *self, PyObject *args, PyObject *kwar
     return 0;
 }
 
-static int DocList_traverse(TFormDocListObject *self, visitproc visit, void *arg) {
+static int DocList_traverse(ETFormDocListObject *self, visitproc visit, void *arg) {
     for (Py_ssize_t i = 0; i < self->item_count; i++) {
         Py_VISIT(self->items[i].object);
     }
     return 0;
 }
 
-static int DocList_clear(TFormDocListObject *self) {
+static int DocList_clear(ETFormDocListObject *self) {
     for (Py_ssize_t i = 0; i < self->item_count; i++) {
         Py_CLEAR(self->items[i].object);
     }
@@ -230,14 +230,14 @@ static int DocList_clear(TFormDocListObject *self) {
     return 0;
 }
 
-static void DocList_dealloc(TFormDocListObject *self) {
+static void DocList_dealloc(ETFormDocListObject *self) {
     PyObject_GC_UnTrack(self);
     DocList_clear(self);
     free(self->items);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *DocList_repr(TFormDocListObject *self) {
+static PyObject *DocList_repr(ETFormDocListObject *self) {
     return PyUnicode_FromFormat(
         "%s(items=%zd)",
         self->ordered ? "OrderedList" : "UnorderedList",
@@ -245,10 +245,10 @@ static PyObject *DocList_repr(TFormDocListObject *self) {
     );
 }
 
-PyTypeObject TFormOrderedListType = {
+PyTypeObject ETFormOrderedListType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.OrderedList",
-    .tp_basicsize = sizeof(TFormDocListObject),
+    .tp_name = "etform.OrderedList",
+    .tp_basicsize = sizeof(ETFormDocListObject),
     .tp_dealloc = (destructor)DocList_dealloc,
     .tp_repr = (reprfunc)DocList_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -259,10 +259,10 @@ PyTypeObject TFormOrderedListType = {
     .tp_new = DocList_new,
 };
 
-PyTypeObject TFormUnorderedListType = {
+PyTypeObject ETFormUnorderedListType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.UnorderedList",
-    .tp_basicsize = sizeof(TFormDocListObject),
+    .tp_name = "etform.UnorderedList",
+    .tp_basicsize = sizeof(ETFormDocListObject),
     .tp_dealloc = (destructor)DocList_dealloc,
     .tp_repr = (reprfunc)DocList_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -274,14 +274,14 @@ PyTypeObject TFormUnorderedListType = {
 };
 
 static int doc_node_array_ensure_capacity(
-    TFormDocNode **children,
+    ETFormDocNode **children,
     Py_ssize_t *capacity,
     Py_ssize_t needed
 ) {
     if (*capacity >= needed) return 0;
     Py_ssize_t next_capacity = *capacity ? *capacity * 2 : 4;
     while (next_capacity < needed) next_capacity *= 2;
-    TFormDocNode *next = realloc(*children, (size_t)next_capacity * sizeof(*next));
+    ETFormDocNode *next = realloc(*children, (size_t)next_capacity * sizeof(*next));
     if (!next) {
         PyErr_NoMemory();
         return -1;
@@ -298,32 +298,32 @@ static int doc_node_array_ensure_capacity(
 
 static int doc_normalize_renderable(
     PyObject *object,
-    TFormDocNodeKind *kind,
+    ETFormDocNodeKind *kind,
     PyObject **stored
 ) {
-    if (PyObject_TypeCheck(object, &TFormDocGroupType)) {
-        *kind = TFORM_DOC_NODE_GROUP;
+    if (PyObject_TypeCheck(object, &ETFormDocGroupType)) {
+        *kind = ETFORM_DOC_NODE_GROUP;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormCodeBlockType)) {
-        *kind = TFORM_DOC_NODE_CODE_BLOCK;
+    } else if (PyObject_TypeCheck(object, &ETFormCodeBlockType)) {
+        *kind = ETFORM_DOC_NODE_CODE_BLOCK;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormTableType)) {
-        *kind = TFORM_DOC_NODE_TABLE;
+    } else if (PyObject_TypeCheck(object, &ETFormTableType)) {
+        *kind = ETFORM_DOC_NODE_TABLE;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormBrailleCanvasType)) {
-        *kind = TFORM_DOC_NODE_BRAILLE_CANVAS;
+    } else if (PyObject_TypeCheck(object, &ETFormBrailleCanvasType)) {
+        *kind = ETFORM_DOC_NODE_BRAILLE_CANVAS;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormImageType)) {
-        *kind = TFORM_DOC_NODE_IMAGE;
+    } else if (PyObject_TypeCheck(object, &ETFormImageType)) {
+        *kind = ETFORM_DOC_NODE_IMAGE;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormOrderedListType)) {
-        *kind = TFORM_DOC_NODE_ORDERED_LIST;
+    } else if (PyObject_TypeCheck(object, &ETFormOrderedListType)) {
+        *kind = ETFORM_DOC_NODE_ORDERED_LIST;
         *stored = Py_NewRef(object);
-    } else if (PyObject_TypeCheck(object, &TFormUnorderedListType)) {
-        *kind = TFORM_DOC_NODE_UNORDERED_LIST;
+    } else if (PyObject_TypeCheck(object, &ETFormUnorderedListType)) {
+        *kind = ETFORM_DOC_NODE_UNORDERED_LIST;
         *stored = Py_NewRef(object);
     } else {
-        *kind = TFORM_DOC_NODE_PARAGRAPH;
+        *kind = ETFORM_DOC_NODE_PARAGRAPH;
         *stored = paragraph_from_object(object);
     }
     if (!*stored) {
@@ -338,19 +338,19 @@ static int doc_normalize_renderable(
 }
 
 static int doc_node_array_append(
-    TFormDocNode **children,
+    ETFormDocNode **children,
     Py_ssize_t *count,
     Py_ssize_t *capacity,
     PyObject *object
 ) {
-    TFormDocNodeKind kind;
+    ETFormDocNodeKind kind;
     PyObject *stored = NULL;
     if (doc_normalize_renderable(object, &kind, &stored) < 0) return -1;
     if (doc_node_array_ensure_capacity(children, capacity, *count + 1) < 0) {
         Py_DECREF(stored);
         return -1;
     }
-    TFormDocNode *node = &(*children)[(*count)++];
+    ETFormDocNode *node = &(*children)[(*count)++];
     node->kind = kind;
     node->object = stored;
     return 0;
@@ -359,7 +359,7 @@ static int doc_node_array_append(
 static PyObject *CodeBlock_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormCodeBlockObject *self = (TFormCodeBlockObject *)type->tp_alloc(type, 0);
+    ETFormCodeBlockObject *self = (ETFormCodeBlockObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->code = NULL;
     self->lang = NULL;
@@ -367,7 +367,7 @@ static PyObject *CodeBlock_new(PyTypeObject *type, PyObject *args, PyObject *kwa
     return (PyObject *)self;
 }
 
-static int CodeBlock_init(TFormCodeBlockObject *self, PyObject *args, PyObject *kwargs) {
+static int CodeBlock_init(ETFormCodeBlockObject *self, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {"code", "lang", "background", NULL};
     const char *code = NULL;
     PyObject *lang_obj = Py_None;
@@ -399,13 +399,13 @@ static int CodeBlock_init(TFormCodeBlockObject *self, PyObject *args, PyObject *
     return 0;
 }
 
-static void CodeBlock_dealloc(TFormCodeBlockObject *self) {
+static void CodeBlock_dealloc(ETFormCodeBlockObject *self) {
     free(self->code);
     free(self->lang);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *CodeBlock_repr(TFormCodeBlockObject *self) {
+static PyObject *CodeBlock_repr(ETFormCodeBlockObject *self) {
     if (self->lang) {
         return PyUnicode_FromFormat(
             "CodeBlock(lang='%s', background=%s)",
@@ -419,18 +419,18 @@ static PyObject *CodeBlock_repr(TFormCodeBlockObject *self) {
     );
 }
 
-static PyObject *CodeBlock_get_code(TFormCodeBlockObject *self, void *closure) {
+static PyObject *CodeBlock_get_code(ETFormCodeBlockObject *self, void *closure) {
     (void)closure;
     return PyUnicode_FromString(self->code ? self->code : "");
 }
 
-static PyObject *CodeBlock_get_lang(TFormCodeBlockObject *self, void *closure) {
+static PyObject *CodeBlock_get_lang(ETFormCodeBlockObject *self, void *closure) {
     (void)closure;
     if (!self->lang) Py_RETURN_NONE;
     return PyUnicode_FromString(self->lang);
 }
 
-static PyObject *CodeBlock_get_background(TFormCodeBlockObject *self, void *closure) {
+static PyObject *CodeBlock_get_background(ETFormCodeBlockObject *self, void *closure) {
     (void)closure;
     return PyBool_FromLong(self->background);
 }
@@ -442,10 +442,10 @@ static PyGetSetDef CodeBlock_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-PyTypeObject TFormCodeBlockType = {
+PyTypeObject ETFormCodeBlockType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.CodeBlock",
-    .tp_basicsize = sizeof(TFormCodeBlockObject),
+    .tp_name = "etform.CodeBlock",
+    .tp_basicsize = sizeof(ETFormCodeBlockObject),
     .tp_dealloc = (destructor)CodeBlock_dealloc,
     .tp_repr = (reprfunc)CodeBlock_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -458,19 +458,19 @@ PyTypeObject TFormCodeBlockType = {
 static PyObject *Group_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormDocGroupObject *self =
-        (TFormDocGroupObject *)type->tp_alloc(type, 0);
+    ETFormDocGroupObject *self =
+        (ETFormDocGroupObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->label = NULL;
     self->children = NULL;
     self->child_count = 0;
     self->child_capacity = 0;
     self->boxed = 0;
-    self->padding = TFORM_DEFAULT_PADDING;
+    self->padding = ETFORM_DEFAULT_PADDING;
     return (PyObject *)self;
 }
 
-static int Group_init(TFormDocGroupObject *self, PyObject *args, PyObject *kwargs) {
+static int Group_init(ETFormDocGroupObject *self, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {"label", "boxed", "padding", NULL};
     const char *label = NULL;
     int boxed = 0;
@@ -485,7 +485,7 @@ static int Group_init(TFormDocGroupObject *self, PyObject *args, PyObject *kwarg
         return -1;
     }
     if (parse_nonnegative(
-            padding_obj, TFORM_DEFAULT_PADDING, "padding", &padding) < 0) {
+            padding_obj, ETFORM_DEFAULT_PADDING, "padding", &padding) < 0) {
         return -1;
     }
     char *copy = doc_strdup(label);
@@ -497,14 +497,14 @@ static int Group_init(TFormDocGroupObject *self, PyObject *args, PyObject *kwarg
     return 0;
 }
 
-static int Group_traverse(TFormDocGroupObject *self, visitproc visit, void *arg) {
+static int Group_traverse(ETFormDocGroupObject *self, visitproc visit, void *arg) {
     for (Py_ssize_t i = 0; i < self->child_count; i++) {
         Py_VISIT(self->children[i].object);
     }
     return 0;
 }
 
-static int Group_clear(TFormDocGroupObject *self) {
+static int Group_clear(ETFormDocGroupObject *self) {
     for (Py_ssize_t i = 0; i < self->child_count; i++) {
         Py_CLEAR(self->children[i].object);
     }
@@ -512,7 +512,7 @@ static int Group_clear(TFormDocGroupObject *self) {
     return 0;
 }
 
-static void Group_dealloc(TFormDocGroupObject *self) {
+static void Group_dealloc(ETFormDocGroupObject *self) {
     PyObject_GC_UnTrack(self);
     Group_clear(self);
     free(self->children);
@@ -520,7 +520,7 @@ static void Group_dealloc(TFormDocGroupObject *self) {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *Group_repr(TFormDocGroupObject *self) {
+static PyObject *Group_repr(ETFormDocGroupObject *self) {
     return PyUnicode_FromFormat(
         "Group('%s', boxed=%s, padding=%d, items=%zd)",
         self->label ? self->label : "",
@@ -530,7 +530,7 @@ static PyObject *Group_repr(TFormDocGroupObject *self) {
     );
 }
 
-static PyObject *Group_add(TFormDocGroupObject *self, PyObject *args) {
+static PyObject *Group_add(ETFormDocGroupObject *self, PyObject *args) {
     Py_ssize_t count = PyTuple_GET_SIZE(args);
     for (Py_ssize_t i = 0; i < count; i++) {
         if (doc_node_array_append(
@@ -545,17 +545,17 @@ static PyObject *Group_add(TFormDocGroupObject *self, PyObject *args) {
     return (PyObject *)self;
 }
 
-static PyObject *Group_get_label(TFormDocGroupObject *self, void *closure) {
+static PyObject *Group_get_label(ETFormDocGroupObject *self, void *closure) {
     (void)closure;
     return PyUnicode_FromString(self->label ? self->label : "");
 }
 
-static PyObject *Group_get_boxed(TFormDocGroupObject *self, void *closure) {
+static PyObject *Group_get_boxed(ETFormDocGroupObject *self, void *closure) {
     (void)closure;
     return PyBool_FromLong(self->boxed);
 }
 
-static PyObject *Group_get_padding(TFormDocGroupObject *self, void *closure) {
+static PyObject *Group_get_padding(ETFormDocGroupObject *self, void *closure) {
     (void)closure;
     return PyLong_FromLong(self->padding);
 }
@@ -572,10 +572,10 @@ static PyGetSetDef Group_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-PyTypeObject TFormDocGroupType = {
+PyTypeObject ETFormDocGroupType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.Group",
-    .tp_basicsize = sizeof(TFormDocGroupObject),
+    .tp_name = "etform.Group",
+    .tp_basicsize = sizeof(ETFormDocGroupObject),
     .tp_dealloc = (destructor)Group_dealloc,
     .tp_repr = (reprfunc)Group_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -591,7 +591,7 @@ PyTypeObject TFormDocGroupType = {
 static PyObject *Doc_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
     (void)kwargs;
-    TFormDocObject *self = (TFormDocObject *)type->tp_alloc(type, 0);
+    ETFormDocObject *self = (ETFormDocObject *)type->tp_alloc(type, 0);
     if (!self) return NULL;
     self->title = NULL;
     self->children = NULL;
@@ -606,7 +606,7 @@ static PyObject *Doc_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     return (PyObject *)self;
 }
 
-static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
+static int Doc_init(ETFormDocObject *self, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {
         "title", "margin_x", "margin_y", "margin_left", "margin_right",
         "margin_top", "margin_bottom", "syntax_highlight", "show_border", NULL
@@ -660,14 +660,14 @@ static int Doc_init(TFormDocObject *self, PyObject *args, PyObject *kwargs) {
     return 0;
 }
 
-static int Doc_traverse(TFormDocObject *self, visitproc visit, void *arg) {
+static int Doc_traverse(ETFormDocObject *self, visitproc visit, void *arg) {
     for (Py_ssize_t i = 0; i < self->child_count; i++) {
         Py_VISIT(self->children[i].object);
     }
     return 0;
 }
 
-static int Doc_clear(TFormDocObject *self) {
+static int Doc_clear(ETFormDocObject *self) {
     for (Py_ssize_t i = 0; i < self->child_count; i++) {
         Py_CLEAR(self->children[i].object);
     }
@@ -675,7 +675,7 @@ static int Doc_clear(TFormDocObject *self) {
     return 0;
 }
 
-static void Doc_dealloc(TFormDocObject *self) {
+static void Doc_dealloc(ETFormDocObject *self) {
     PyObject_GC_UnTrack(self);
     Doc_clear(self);
     free(self->children);
@@ -683,7 +683,7 @@ static void Doc_dealloc(TFormDocObject *self) {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static int doc_append_child(TFormDocObject *self, PyObject *object) {
+static int doc_append_child(ETFormDocObject *self, PyObject *object) {
     return doc_node_array_append(
         &self->children,
         &self->child_count,
@@ -692,7 +692,7 @@ static int doc_append_child(TFormDocObject *self, PyObject *object) {
     );
 }
 
-static PyObject *Doc_add(TFormDocObject *self, PyObject *args) {
+static PyObject *Doc_add(ETFormDocObject *self, PyObject *args) {
     Py_ssize_t count = PyTuple_GET_SIZE(args);
     for (Py_ssize_t i = 0; i < count; i++) {
         if (doc_append_child(self, PyTuple_GET_ITEM(args, i)) < 0) {
@@ -703,12 +703,12 @@ static PyObject *Doc_add(TFormDocObject *self, PyObject *args) {
     return (PyObject *)self;
 }
 
-static PyObject *Doc_run(TFormDocObject *self, PyObject *Py_UNUSED(ignored)) {
+static PyObject *Doc_run(ETFormDocObject *self, PyObject *Py_UNUSED(ignored)) {
     if (self->child_count <= 0) {
         PyErr_SetString(PyExc_ValueError, "document must contain at least one item");
         return NULL;
     }
-    if (tform_run_doc(self) < 0) {
+    if (etform_run_doc(self) < 0) {
         PyErr_SetString(PyExc_RuntimeError, "could not run document");
         return NULL;
     }
@@ -721,10 +721,10 @@ static PyMethodDef Doc_methods[] = {
     {NULL, NULL, 0, NULL},
 };
 
-PyTypeObject TFormDocType = {
+PyTypeObject ETFormDocType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "tform.Doc",
-    .tp_basicsize = sizeof(TFormDocObject),
+    .tp_name = "etform.Doc",
+    .tp_basicsize = sizeof(ETFormDocObject),
     .tp_dealloc = (destructor)Doc_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_doc = "Read-only structured terminal document.",

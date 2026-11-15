@@ -2,15 +2,15 @@
 
 #include <stdlib.h>
 
-#define TFORM_PM_MAX 64
+#define ETFORM_PM_MAX 64
 
-static TFormPmNode *TFORM_PM_LIST[TFORM_PM_MAX];
-static int TFORM_PM_COUNT = 0;
-static int TFORM_PM_NEXT_ORDER = 1;
+static ETFormPmNode *ETFORM_PM_LIST[ETFORM_PM_MAX];
+static int ETFORM_PM_COUNT = 0;
+static int ETFORM_PM_NEXT_ORDER = 1;
 
 static int compare_nodes(const void *left, const void *right) {
-    const TFormPmNode *a = *(TFormPmNode * const *)left;
-    const TFormPmNode *b = *(TFormPmNode * const *)right;
+    const ETFormPmNode *a = *(ETFormPmNode * const *)left;
+    const ETFormPmNode *b = *(ETFormPmNode * const *)right;
     if (a->z_index < b->z_index) {
         return -1;
     }
@@ -27,32 +27,32 @@ static int compare_nodes(const void *left, const void *right) {
 }
 
 static void restack(void) {
-    qsort(TFORM_PM_LIST, (size_t)TFORM_PM_COUNT, sizeof(TFormPmNode *), compare_nodes);
-    for (int i = 0; i < TFORM_PM_COUNT; i++) {
-        top_panel(TFORM_PM_LIST[i]->panel);
+    qsort(ETFORM_PM_LIST, (size_t)ETFORM_PM_COUNT, sizeof(ETFormPmNode *), compare_nodes);
+    for (int i = 0; i < ETFORM_PM_COUNT; i++) {
+        top_panel(ETFORM_PM_LIST[i]->panel);
     }
 }
 
-void tform_pm_init(void) {
-    TFORM_PM_COUNT = 0;
-    TFORM_PM_NEXT_ORDER = 1;
+void etform_pm_init(void) {
+    ETFORM_PM_COUNT = 0;
+    ETFORM_PM_NEXT_ORDER = 1;
 }
 
-void tform_pm_teardown(void) {
-    for (int i = 0; i < TFORM_PM_COUNT; i++) {
-        if (!TFORM_PM_LIST[i]) {
+void etform_pm_teardown(void) {
+    for (int i = 0; i < ETFORM_PM_COUNT; i++) {
+        if (!ETFORM_PM_LIST[i]) {
             continue;
         }
-        del_panel(TFORM_PM_LIST[i]->panel);
-        delwin(TFORM_PM_LIST[i]->win);
-        free(TFORM_PM_LIST[i]);
-        TFORM_PM_LIST[i] = NULL;
+        del_panel(ETFORM_PM_LIST[i]->panel);
+        delwin(ETFORM_PM_LIST[i]->win);
+        free(ETFORM_PM_LIST[i]);
+        ETFORM_PM_LIST[i] = NULL;
     }
-    TFORM_PM_COUNT = 0;
+    ETFORM_PM_COUNT = 0;
 }
 
-TFormPmNode *tform_pm_add(int y, int x, int h, int w, int z_index, TFormPmLayerRole role) {
-    if (TFORM_PM_COUNT >= TFORM_PM_MAX || h < 1 || w < 1) {
+ETFormPmNode *etform_pm_add(int y, int x, int h, int w, int z_index, ETFormPmLayerRole role) {
+    if (ETFORM_PM_COUNT >= ETFORM_PM_MAX || h < 1 || w < 1) {
         return NULL;
     }
 
@@ -66,7 +66,7 @@ TFormPmNode *tform_pm_add(int y, int x, int h, int w, int z_index, TFormPmLayerR
         return NULL;
     }
 
-    TFormPmNode *node = calloc(1, sizeof(TFormPmNode));
+    ETFormPmNode *node = calloc(1, sizeof(ETFormPmNode));
     if (!node) {
         del_panel(panel);
         delwin(win);
@@ -81,30 +81,30 @@ TFormPmNode *tform_pm_add(int y, int x, int h, int w, int z_index, TFormPmLayerR
     node->x = x;
     node->h = h;
     node->w = w;
-    node->order = TFORM_PM_NEXT_ORDER++;
+    node->order = ETFORM_PM_NEXT_ORDER++;
     node->visible = true;
-    TFORM_PM_LIST[TFORM_PM_COUNT++] = node;
+    ETFORM_PM_LIST[ETFORM_PM_COUNT++] = node;
     restack();
     return node;
 }
 
-void tform_pm_remove(TFormPmNode *node) {
+void etform_pm_remove(ETFormPmNode *node) {
     if (!node) {
         return;
     }
 
     int index = -1;
-    for (int i = 0; i < TFORM_PM_COUNT; i++) {
-        if (TFORM_PM_LIST[i] == node) {
+    for (int i = 0; i < ETFORM_PM_COUNT; i++) {
+        if (ETFORM_PM_LIST[i] == node) {
             index = i;
             break;
         }
     }
     if (index >= 0) {
-        for (int i = index; i < TFORM_PM_COUNT - 1; i++) {
-            TFORM_PM_LIST[i] = TFORM_PM_LIST[i + 1];
+        for (int i = index; i < ETFORM_PM_COUNT - 1; i++) {
+            ETFORM_PM_LIST[i] = ETFORM_PM_LIST[i + 1];
         }
-        TFORM_PM_COUNT--;
+        ETFORM_PM_COUNT--;
     }
 
     del_panel(node->panel);
@@ -113,7 +113,7 @@ void tform_pm_remove(TFormPmNode *node) {
     restack();
 }
 
-void tform_pm_show(TFormPmNode *node) {
+void etform_pm_show(ETFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -121,7 +121,7 @@ void tform_pm_show(TFormPmNode *node) {
     node->visible = true;
 }
 
-void tform_pm_hide(TFormPmNode *node) {
+void etform_pm_hide(ETFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -129,7 +129,7 @@ void tform_pm_hide(TFormPmNode *node) {
     node->visible = false;
 }
 
-void tform_pm_move(TFormPmNode *node, int y, int x) {
+void etform_pm_move(ETFormPmNode *node, int y, int x) {
     if (!node) {
         return;
     }
@@ -138,7 +138,7 @@ void tform_pm_move(TFormPmNode *node, int y, int x) {
     move_panel(node->panel, y, x);
 }
 
-void tform_pm_resize(TFormPmNode *node, int h, int w) {
+void etform_pm_resize(ETFormPmNode *node, int h, int w) {
     if (!node || h < 1 || w < 1) {
         return;
     }
@@ -148,20 +148,20 @@ void tform_pm_resize(TFormPmNode *node, int h, int w) {
     replace_panel(node->panel, node->win);
 }
 
-void tform_pm_wnoutrefresh(TFormPmNode *node) {
+void etform_pm_wnoutrefresh(ETFormPmNode *node) {
     if (!node) {
         return;
     }
     wnoutrefresh(node->win);
 }
 
-void tform_pm_update(void) {
+void etform_pm_update(void) {
     restack();
     update_panels();
     doupdate();
 }
 
-void tform_pm_center(TFormPmNode *node) {
+void etform_pm_center(ETFormPmNode *node) {
     if (!node) {
         return;
     }
@@ -173,9 +173,9 @@ void tform_pm_center(TFormPmNode *node) {
     if (x < 0) {
         x = 0;
     }
-    tform_pm_move(node, y, x);
+    etform_pm_move(node, y, x);
 }
 
-void tform_pm_on_resize(void) {
+void etform_pm_on_resize(void) {
     restack();
 }

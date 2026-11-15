@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Developer settings form for testing TForm from a source checkout."""
+"""Developer settings form for testing ETForm from a source checkout."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
+from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
 
 
 def build_form() -> Form:
@@ -60,8 +60,8 @@ def build_form() -> Form:
     form.add_text_input(
         key="project_name",
         label=Text("Project Name", align="center", bold=True, color="cyan"),
-        default="TForm",
-        placeholder=Text("TForm", align="center", color="blue", italicized=True, underline=True),
+        default="ETForm",
+        placeholder=Text("ETForm", align="center", color="blue", italicized=True, underline=True),
         description="Display name used in local development prompts and generated output.",
         field_color="cyan",
     )

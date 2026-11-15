@@ -34,7 +34,7 @@ static void append_char(char **buffer, size_t *length, size_t *capacity, char ch
     (*buffer)[*length] = '\0';
 }
 
-char *tform_query_dialog(const char *title, const char *initial_text) {
+char *etform_query_dialog(const char *title, const char *initial_text) {
     size_t capacity = 256;
     size_t length = initial_text ? strlen(initial_text) : 0;
     while (capacity <= length + 2) {
@@ -69,12 +69,12 @@ char *tform_query_dialog(const char *title, const char *initial_text) {
         x = 0;
     }
 
-    TFormPmNode *shadow = tform_pm_add(
-        y + 1, x + 2, height, width, TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+    ETFormPmNode *shadow = etform_pm_add(
+        y + 1, x + 2, height, width, ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL);
+    ETFormPmNode *modal = etform_pm_add(y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL);
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         free(buffer);
         return NULL;
     }
@@ -82,50 +82,50 @@ char *tform_query_dialog(const char *title, const char *initial_text) {
 
     for (;;) {
         if (shadow) {
-            wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+            wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
             werase(shadow->win);
         }
-        wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         werase(modal->win);
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         box(modal->win, 0, 0);
         mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title);
         mvwprintw(modal->win, height - 2, 2, "[Enter] Enter  [Esc] Exit");
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
 
         mvwhline(modal->win, 2, 2, ' ', width - 4);
         wmove(modal->win, 2, 2);
         size_t clipped = (size_t)(width - 5);
         if (length > clipped) {
-            tform_ui_text_addstr_width(modal->win, buffer + (length - clipped), width - 5);
+            etform_ui_text_addstr_width(modal->win, buffer + (length - clipped), width - 5);
         } else {
-            tform_ui_text_addstr_width(modal->win, buffer, width - 5);
+            etform_ui_text_addstr_width(modal->win, buffer, width - 5);
         }
         int cursor_x = 2 + (int)(length > clipped ? clipped : length);
         if (cursor_x > width - 3) {
             cursor_x = width - 3;
         }
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_CURSOR));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_CURSOR));
         mvwaddch(modal->win, 2, cursor_x, ' ');
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_CURSOR));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_CURSOR));
         wmove(modal->win, 2, cursor_x);
 
-        tform_pm_wnoutrefresh(shadow);
-        tform_pm_wnoutrefresh(modal);
-        tform_pm_update();
+        etform_pm_wnoutrefresh(shadow);
+        etform_pm_wnoutrefresh(modal);
+        etform_pm_update();
 
         int ch = wgetch(modal->win);
         if (ch == 27) {
             free(buffer);
-            tform_pm_remove(modal);
-            tform_pm_remove(shadow);
-            tform_pm_update();
+            etform_pm_remove(modal);
+            etform_pm_remove(shadow);
+            etform_pm_update();
             return NULL;
         }
         if (ch == '\n' || ch == KEY_ENTER) {
-            tform_pm_remove(modal);
-            tform_pm_remove(shadow);
-            tform_pm_update();
+            etform_pm_remove(modal);
+            etform_pm_remove(shadow);
+            etform_pm_update();
             return buffer;
         }
         if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
@@ -289,7 +289,7 @@ static int load_file_picker_entries(
             continue;
         }
         int is_dir = S_ISDIR(st.st_mode);
-        if (!is_dir && mode == TFORM_FILE_PICKER_DIRECTORY) {
+        if (!is_dir && mode == ETFORM_FILE_PICKER_DIRECTORY) {
             free(path);
             continue;
         }
@@ -331,7 +331,7 @@ static char *absolute_path_copy(const char *path) {
     return strdup(path ? path : "");
 }
 
-char *tform_file_picker_dialog(const char *title, int mode, const char *start_dir) {
+char *etform_file_picker_dialog(const char *title, int mode, const char *start_dir) {
     char launch_dir[PATH_MAX];
     char root_dir[PATH_MAX];
     char current_dir[PATH_MAX];
@@ -368,12 +368,12 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
         x = 0;
     }
 
-    TFormPmNode *shadow = tform_pm_add(
-        y + 1, x + 2, height, width, TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+    ETFormPmNode *shadow = etform_pm_add(
+        y + 1, x + 2, height, width, ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL);
+    ETFormPmNode *modal = etform_pm_add(y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL);
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         return NULL;
     }
     keypad(modal->win, TRUE);
@@ -413,20 +413,20 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
         }
 
         if (shadow) {
-            wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+            wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
             werase(shadow->win);
         }
-        wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         werase(modal->win);
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         box(modal->win, 0, 0);
         mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "File Picker");
         mvwprintw(modal->win, 2, 2, "%.*s", width - 4, current_dir);
-        const char *footer = mode == TFORM_FILE_PICKER_DIRECTORY
+        const char *footer = mode == ETFORM_FILE_PICKER_DIRECTORY
             ? "[Enter] Open  [B] Back  [Ctrl+E] Choose Dir  [Esc] Exit"
             : "[Enter] Open/Choose  [B] Back  [Esc] Exit";
         mvwprintw(modal->win, height - 2, 2, "%.*s", width - 4, footer);
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
 
         for (int row = 0; row < visible; row++) {
             int index = top + row;
@@ -435,23 +435,23 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
             if (index >= entry_count) {
                 continue;
             }
-            int attr = entries[index].is_dir ? tform_color_pair(TFORM_PAIR_SYNTAX_KEYWORD) : 0;
+            int attr = entries[index].is_dir ? etform_color_pair(ETFORM_PAIR_SYNTAX_KEYWORD) : 0;
             if (index == selected) {
-                attr = tform_color_pair(TFORM_PAIR_CURSOR) | A_BOLD;
+                attr = etform_color_pair(ETFORM_PAIR_CURSOR) | A_BOLD;
             }
             if (attr) {
                 wattron(modal->win, attr);
             }
             wmove(modal->win, draw_y, 2);
-            tform_ui_text_addstr_width(modal->win, entries[index].label, width - 4);
+            etform_ui_text_addstr_width(modal->win, entries[index].label, width - 4);
             if (attr) {
                 wattroff(modal->win, attr);
             }
         }
 
-        tform_pm_wnoutrefresh(shadow);
-        tform_pm_wnoutrefresh(modal);
-        tform_pm_update();
+        etform_pm_wnoutrefresh(shadow);
+        etform_pm_wnoutrefresh(modal);
+        etform_pm_update();
 
         int ch = wgetch(modal->win);
         if (ch == 27) {
@@ -467,7 +467,7 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
                 selected = 0;
                 top = 0;
             }
-        } else if (ch == CTRL_E && mode == TFORM_FILE_PICKER_DIRECTORY && entry_count > 0) {
+        } else if (ch == CTRL_E && mode == ETFORM_FILE_PICKER_DIRECTORY && entry_count > 0) {
             if (entries[selected].is_dir) {
                 result = absolute_path_copy(entries[selected].path);
             } else {
@@ -483,7 +483,7 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
                     selected = 0;
                     top = 0;
                 }
-            } else if (mode == TFORM_FILE_PICKER_FILE) {
+            } else if (mode == ETFORM_FILE_PICKER_FILE) {
                 result = absolute_path_copy(entries[selected].path);
                 free_file_picker_entries(entries, entry_count);
                 break;
@@ -492,9 +492,9 @@ char *tform_file_picker_dialog(const char *title, int mode, const char *start_di
         free_file_picker_entries(entries, entry_count);
     }
 
-    tform_pm_remove(modal);
-    tform_pm_remove(shadow);
-    tform_pm_update();
+    etform_pm_remove(modal);
+    etform_pm_remove(shadow);
+    etform_pm_update();
     return result;
 }
 
@@ -635,7 +635,7 @@ static void calendar_draw_rule(
     }
 }
 
-char *tform_calendar_dialog(const char *title, const char *initial_date) {
+char *etform_calendar_dialog(const char *title, const char *initial_date) {
     int month = 1;
     int day = 1;
     int year = 1970;
@@ -667,12 +667,12 @@ char *tform_calendar_dialog(const char *title, const char *initial_date) {
         x = 0;
     }
 
-    TFormPmNode *shadow = tform_pm_add(
-        y + 1, x + 2, height, width, TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+    ETFormPmNode *shadow = etform_pm_add(
+        y + 1, x + 2, height, width, ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL);
+    ETFormPmNode *modal = etform_pm_add(y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL);
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         return NULL;
     }
     keypad(modal->win, TRUE);
@@ -686,16 +686,16 @@ char *tform_calendar_dialog(const char *title, const char *initial_date) {
         }
 
         if (shadow) {
-            wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+            wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
             werase(shadow->win);
         }
-        wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         werase(modal->win);
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         box(modal->win, 0, 0);
         mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "Calendar");
         mvwprintw(modal->win, height - 2, 2, "[Tab] Section  [Arrows] Change  [Enter] Select  [Esc] Done");
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
 
         int top_y = 2;
         int top_x = 4;
@@ -714,7 +714,7 @@ char *tform_calendar_dialog(const char *title, const char *initial_date) {
         mvwprintw(modal->win, top_y + 1, month_x, "Month:");
         mvwprintw(modal->win, top_y + 1, day_x, "Day:");
         mvwprintw(modal->win, top_y + 1, year_x, "Year:");
-        int active_attr = tform_color_pair(TFORM_PAIR_SYNTAX_KEYWORD) | A_BOLD;
+        int active_attr = etform_color_pair(ETFORM_PAIR_SYNTAX_KEYWORD) | A_BOLD;
         if (focus_top && numeric_part == 0) {
             wattron(modal->win, active_attr);
         }
@@ -748,7 +748,7 @@ char *tform_calendar_dialog(const char *title, const char *initial_date) {
             grid_x = 2;
         }
         const char *headers[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-        int grid_attr = tform_color_pair(TFORM_PAIR_DIALOG);
+        int grid_attr = etform_color_pair(ETFORM_PAIR_DIALOG);
         wattron(modal->win, grid_attr);
         calendar_draw_rule(modal->win, grid_y, grid_x, cell_w, "┏", "┳", "┓", "━");
         for (int col = 0; col < 7; col++) {
@@ -804,17 +804,17 @@ char *tform_calendar_dialog(const char *title, const char *initial_date) {
         calendar_draw_rule(modal->win, grid_y + 14, grid_x, cell_w, "┗", "┷", "┛", "━");
         wattroff(modal->win, grid_attr);
 
-        tform_pm_wnoutrefresh(shadow);
-        tform_pm_wnoutrefresh(modal);
-        tform_pm_update();
+        etform_pm_wnoutrefresh(shadow);
+        etform_pm_wnoutrefresh(modal);
+        etform_pm_update();
 
         int ch = wgetch(modal->win);
         if (focus_top) {
             if (ch == 27 || ch == '\n' || ch == KEY_ENTER) {
                 char *result = calendar_format_date(month, day, year);
-                tform_pm_remove(modal);
-                tform_pm_remove(shadow);
-                tform_pm_update();
+                etform_pm_remove(modal);
+                etform_pm_remove(shadow);
+                etform_pm_update();
                 return result;
             }
             if (ch == '\t') {
@@ -1003,13 +1003,13 @@ static void clock_draw_face(
         (double)second * pi / 30.0,
         radius * 0.88
     );
-    wattron(win, tform_color_pair(TFORM_PAIR_CLOCK_FACE));
+    wattron(win, etform_color_pair(ETFORM_PAIR_CLOCK_FACE));
     braille_canvas_render(&canvas, win, origin_y, origin_x, char_height, char_width);
-    wattroff(win, tform_color_pair(TFORM_PAIR_CLOCK_FACE));
+    wattroff(win, etform_color_pair(ETFORM_PAIR_CLOCK_FACE));
     braille_canvas_free(&canvas);
 }
 
-char *tform_clock_dialog(
+char *etform_clock_dialog(
     const char *title,
     const char *initial_time,
     int format_12h,
@@ -1032,15 +1032,15 @@ char *tform_clock_dialog(
     if (height < 10 || width < 30) return NULL;
     int y = (LINES - height) / 2;
     int x = (COLS - width) / 2;
-    TFormPmNode *shadow = tform_pm_add(
+    ETFormPmNode *shadow = etform_pm_add(
         y + 1, x + 2, height, width,
-        TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+        ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(
-        y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL
+    ETFormPmNode *modal = etform_pm_add(
+        y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL
     );
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         return NULL;
     }
     keypad(modal->win, TRUE);
@@ -1054,16 +1054,16 @@ char *tform_clock_dialog(
         clock_split_seconds(base_seconds + (int)elapsed, &hour, &minute, &second);
 
         if (shadow) {
-            wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+            wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
             werase(shadow->win);
         }
-        wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         werase(modal->win);
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         box(modal->win, 0, 0);
         mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "Clock");
         mvwprintw(modal->win, height - 2, 2, "[Left/Right] Field  [Up/Down] Change  [Enter] Select  [Esc] Cancel");
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
 
         int digital_width = width >= 58 ? 24 : width - 4;
         int digital_x = 3;
@@ -1076,9 +1076,9 @@ char *tform_clock_dialog(
         if (!include_seconds && format_12h) logical_to_display[2] = 3;
         for (int control = 0; control < control_count; control++) {
             int display_index = logical_to_display[control];
-            int attr = tform_color_pair(TFORM_PAIR_DIALOG);
+            int attr = etform_color_pair(ETFORM_PAIR_DIALOG);
             if (control == selected) {
-                attr = (int)(tform_color_pair(TFORM_PAIR_CURSOR) | A_BOLD);
+                attr = (int)(etform_color_pair(ETFORM_PAIR_CURSOR) | A_BOLD);
             }
             wattron(modal->win, attr);
             if (display_index == 3) {
@@ -1111,23 +1111,23 @@ char *tform_clock_dialog(
             }
         }
 
-        tform_pm_wnoutrefresh(shadow);
-        tform_pm_wnoutrefresh(modal);
-        tform_pm_update();
+        etform_pm_wnoutrefresh(shadow);
+        etform_pm_wnoutrefresh(modal);
+        etform_pm_update();
 
         int ch = wgetch(modal->win);
         if (ch == ERR) continue;
         if (ch == 27) {
-            tform_pm_remove(modal);
-            tform_pm_remove(shadow);
-            tform_pm_update();
+            etform_pm_remove(modal);
+            etform_pm_remove(shadow);
+            etform_pm_update();
             return NULL;
         }
         if (ch == '\n' || ch == KEY_ENTER) {
             char *result = clock_format_value(hour, minute, second, format_12h, include_seconds);
-            tform_pm_remove(modal);
-            tform_pm_remove(shadow);
-            tform_pm_update();
+            etform_pm_remove(modal);
+            etform_pm_remove(shadow);
+            etform_pm_update();
             return result;
         }
         if (ch == KEY_LEFT) {
@@ -1156,7 +1156,7 @@ char *tform_clock_dialog(
     }
 }
 
-void tform_message_dialog(const char *message) {
+void etform_message_dialog(const char *message) {
     int width = COLS > 60 ? 60 : COLS - 2;
     int height = 7;
     if (width < 24) {
@@ -1177,36 +1177,36 @@ void tform_message_dialog(const char *message) {
         x = 0;
     }
 
-    TFormPmNode *shadow = tform_pm_add(
-        y + 1, x + 2, height, width, TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+    ETFormPmNode *shadow = etform_pm_add(
+        y + 1, x + 2, height, width, ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL);
+    ETFormPmNode *modal = etform_pm_add(y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL);
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         return;
     }
     keypad(modal->win, TRUE);
     if (shadow) {
-        wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+        wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
         werase(shadow->win);
     }
-    wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+    wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
     werase(modal->win);
-    wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+    wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
     box(modal->win, 0, 0);
     mvwprintw(modal->win, height / 2, 2, "%.*s", width - 4, message);
     mvwprintw(modal->win, height - 2, 2, "Press any key");
-    wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
-    tform_pm_wnoutrefresh(shadow);
-    tform_pm_wnoutrefresh(modal);
-    tform_pm_update();
+    wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
+    etform_pm_wnoutrefresh(shadow);
+    etform_pm_wnoutrefresh(modal);
+    etform_pm_update();
     wgetch(modal->win);
-    tform_pm_remove(modal);
-    tform_pm_remove(shadow);
-    tform_pm_update();
+    etform_pm_remove(modal);
+    etform_pm_remove(shadow);
+    etform_pm_update();
 }
 
-void tform_readonly_dialog(const char *title, const char *message) {
+void etform_readonly_dialog(const char *title, const char *message) {
     int width = COLS > 72 ? 72 : COLS - 2;
     int height = LINES > 14 ? 14 : LINES - 2;
     if (width < 32) {
@@ -1230,27 +1230,27 @@ void tform_readonly_dialog(const char *title, const char *message) {
         x = 0;
     }
 
-    TFormPmNode *shadow = tform_pm_add(
-        y + 1, x + 2, height, width, TFORM_PM_LAYER_MODAL_SHADOW, TFORM_PM_LAYER_MODAL_SHADOW
+    ETFormPmNode *shadow = etform_pm_add(
+        y + 1, x + 2, height, width, ETFORM_PM_LAYER_MODAL_SHADOW, ETFORM_PM_LAYER_MODAL_SHADOW
     );
-    TFormPmNode *modal = tform_pm_add(y, x, height, width, TFORM_PM_LAYER_MODAL, TFORM_PM_LAYER_MODAL);
+    ETFormPmNode *modal = etform_pm_add(y, x, height, width, ETFORM_PM_LAYER_MODAL, ETFORM_PM_LAYER_MODAL);
     if (!modal) {
-        tform_pm_remove(shadow);
+        etform_pm_remove(shadow);
         return;
     }
     keypad(modal->win, TRUE);
     for (;;) {
         if (shadow) {
-            wbkgd(shadow->win, tform_color_pair(TFORM_PAIR_SHADOW));
+            wbkgd(shadow->win, etform_color_pair(ETFORM_PAIR_SHADOW));
             werase(shadow->win);
         }
-        wbkgd(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wbkgd(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         werase(modal->win);
-        wattron(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattron(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
         box(modal->win, 0, 0);
         mvwprintw(modal->win, 0, 2, " %.*s ", width - 6, title ? title : "Info");
         mvwprintw(modal->win, height - 2, 2, "[Enter] Close  [Esc] Close");
-        wattroff(modal->win, tform_color_pair(TFORM_PAIR_DIALOG));
+        wattroff(modal->win, etform_color_pair(ETFORM_PAIR_DIALOG));
 
         int row = 2;
         int col = 2;
@@ -1267,15 +1267,15 @@ void tform_readonly_dialog(const char *title, const char *message) {
                 mvwaddch(modal->win, row, col++, *p);
             }
         }
-        tform_pm_wnoutrefresh(shadow);
-        tform_pm_wnoutrefresh(modal);
-        tform_pm_update();
+        etform_pm_wnoutrefresh(shadow);
+        etform_pm_wnoutrefresh(modal);
+        etform_pm_update();
         int ch = wgetch(modal->win);
         if (ch == 27 || ch == '\n' || ch == KEY_ENTER) {
             break;
         }
     }
-    tform_pm_remove(modal);
-    tform_pm_remove(shadow);
-    tform_pm_update();
+    etform_pm_remove(modal);
+    etform_pm_remove(shadow);
+    etform_pm_update();
 }

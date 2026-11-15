@@ -1,5 +1,5 @@
-#ifndef TFORM_DOC_OBJECT_H
-#define TFORM_DOC_OBJECT_H
+#ifndef ETFORM_DOC_OBJECT_H
+#define ETFORM_DOC_OBJECT_H
 
 #include "form_object.h"
 
@@ -10,74 +10,74 @@ typedef struct {
     char *code;
     char *lang;
     int background;
-} TFormCodeBlockObject;
+} ETFormCodeBlockObject;
 
 typedef enum {
-    TFORM_PARAGRAPH_RUN_STRING,
-    TFORM_PARAGRAPH_RUN_TEXT
-} TFormParagraphRunKind;
+    ETFORM_PARAGRAPH_RUN_STRING,
+    ETFORM_PARAGRAPH_RUN_TEXT
+} ETFormParagraphRunKind;
 
 typedef struct {
-    TFormParagraphRunKind kind;
+    ETFormParagraphRunKind kind;
     PyObject *object;
-} TFormParagraphRun;
+} ETFormParagraphRun;
 
 typedef struct {
     PyObject_HEAD
-    TFormParagraphRun *runs;
+    ETFormParagraphRun *runs;
     Py_ssize_t run_count;
     Py_ssize_t run_capacity;
-} TFormParagraphObject;
+} ETFormParagraphObject;
 
 typedef enum {
-    TFORM_DOC_LIST_ITEM_PARAGRAPH,
-    TFORM_DOC_LIST_ITEM_ORDERED_LIST,
-    TFORM_DOC_LIST_ITEM_UNORDERED_LIST
-} TFormDocListItemKind;
+    ETFORM_DOC_LIST_ITEM_PARAGRAPH,
+    ETFORM_DOC_LIST_ITEM_ORDERED_LIST,
+    ETFORM_DOC_LIST_ITEM_UNORDERED_LIST
+} ETFormDocListItemKind;
 
 typedef struct {
-    TFormDocListItemKind kind;
+    ETFormDocListItemKind kind;
     PyObject *object;
-} TFormDocListItem;
+} ETFormDocListItem;
 
 typedef struct {
     PyObject_HEAD
-    TFormDocListItem *items;
+    ETFormDocListItem *items;
     Py_ssize_t item_count;
     Py_ssize_t item_capacity;
     int ordered;
-} TFormDocListObject;
+} ETFormDocListObject;
 
 typedef enum {
-    TFORM_DOC_NODE_PARAGRAPH,
-    TFORM_DOC_NODE_GROUP,
-    TFORM_DOC_NODE_TABLE,
-    TFORM_DOC_NODE_CODE_BLOCK,
-    TFORM_DOC_NODE_BRAILLE_CANVAS,
-    TFORM_DOC_NODE_IMAGE,
-    TFORM_DOC_NODE_ORDERED_LIST,
-    TFORM_DOC_NODE_UNORDERED_LIST
-} TFormDocNodeKind;
+    ETFORM_DOC_NODE_PARAGRAPH,
+    ETFORM_DOC_NODE_GROUP,
+    ETFORM_DOC_NODE_TABLE,
+    ETFORM_DOC_NODE_CODE_BLOCK,
+    ETFORM_DOC_NODE_BRAILLE_CANVAS,
+    ETFORM_DOC_NODE_IMAGE,
+    ETFORM_DOC_NODE_ORDERED_LIST,
+    ETFORM_DOC_NODE_UNORDERED_LIST
+} ETFormDocNodeKind;
 
 typedef struct {
-    TFormDocNodeKind kind;
+    ETFormDocNodeKind kind;
     PyObject *object;
-} TFormDocNode;
+} ETFormDocNode;
 
 typedef struct {
     PyObject_HEAD
     char *label;
-    TFormDocNode *children;
+    ETFormDocNode *children;
     Py_ssize_t child_count;
     Py_ssize_t child_capacity;
     int boxed;
     int padding;
-} TFormDocGroupObject;
+} ETFormDocGroupObject;
 
 typedef struct {
     PyObject_HEAD
     char *title;
-    TFormDocNode *children;
+    ETFormDocNode *children;
     Py_ssize_t child_count;
     Py_ssize_t child_capacity;
     int margin_left;
@@ -86,13 +86,13 @@ typedef struct {
     int margin_bottom;
     int syntax_highlight;
     int show_border;
-} TFormDocObject;
+} ETFormDocObject;
 
-extern PyTypeObject TFormDocType;
-extern PyTypeObject TFormDocGroupType;
-extern PyTypeObject TFormCodeBlockType;
-extern PyTypeObject TFormParagraphType;
-extern PyTypeObject TFormOrderedListType;
-extern PyTypeObject TFormUnorderedListType;
+extern PyTypeObject ETFormDocType;
+extern PyTypeObject ETFormDocGroupType;
+extern PyTypeObject ETFormCodeBlockType;
+extern PyTypeObject ETFormParagraphType;
+extern PyTypeObject ETFormOrderedListType;
+extern PyTypeObject ETFormUnorderedListType;
 
 #endif

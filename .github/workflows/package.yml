@@ -1,0 +1,74 @@
+name: Build and publish package
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install build twine
+      - run: python -m build --sdist
+      - run: python -m twine check dist/*
+      - run: sudo apt-get update && sudo apt-get install -y libncurses-dev
+      - run: python -m pip install dist/*.tar.gz
+      - name: Test installed source distribution
+        working-directory: ${{ runner.temp }}
+        run: python -c "import etform; assert etform.Text('test').value == 'test'; assert etform.Text.__module__ == 'etform'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*
+
+  wheels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install cibuildwheel twine
+      - name: Build and test Linux wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: "cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64 cp314-manylinux_x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: yum install -y ncurses-devel
+          CIBW_TEST_COMMAND: 'python -c "import etform; assert etform.Text(\"test\").value == \"test\"; assert etform.Form(\"test\"); assert all(getattr(etform, n).__module__ == \"etform\" for n in etform.__all__)"'
+      - run: python -m twine check wheelhouse/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-wheels
+          path: wheelhouse/*
+
+  publish:
+    if: github.event_name == 'release'
+    needs: [sdist, wheels]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: test "$RELEASE_TAG" = "v$(tr -d '\r\n' < VERSION)"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
