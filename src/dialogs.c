@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "dialogs.h"
 
 #include "braille_canvas.h"
