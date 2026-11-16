@@ -64,21 +64,6 @@ python3 -m pip install -e .
 Clipboard paste uses `xclip` when available. Running the interface requires an
 interactive terminal with a suitable terminfo database.
 
-## Publishing
-
-The package has not been published by this repository's workflow until a
-maintainer configures PyPI and publishes a release. Create the `etform` project
-or a pending trusted publisher on PyPI for repository `canadaluke888/TForm`,
-workflow `package.yml`, and environment `pypi`. Review the project's licensing
-and the licenses of bundled native dependencies before distributing it.
-
-Update `VERSION`, then create and publish a GitHub release tagged with `v`
-followed by that version (for example, `v0.17.0`). The packaging workflow builds
-the source distribution and Linux wheels, tests the wheels, and publishes them
-through PyPI Trusted Publishing. Each PyPI version can only be uploaded once.
-The workflow also builds downloadable artifacts on pushes, pull requests, and
-manual runs without publishing them. PyPI names are claimed on first upload.
-
 ## Quick Start
 
 ```python
