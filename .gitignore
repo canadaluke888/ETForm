@@ -1,5 +1,6 @@
 # Snapshot config
 .gc
+ETForm_export/
 
 *.egg-info
 *.pyc

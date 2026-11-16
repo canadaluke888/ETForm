@@ -8,11 +8,13 @@ from ._etform import FilePicker as FilePicker
 from ._etform import FilePickerMode as FilePickerMode
 from ._etform import Form as Form
 from ._etform import Group as Group
+from ._etform import ITable as ITable
 from ._etform import Image as Image
 from ._etform import LabelAlign as LabelAlign
 from ._etform import OrderedList as OrderedList
 from ._etform import Paragraph as Paragraph
 from ._etform import StaticItem as StaticItem
+from ._etform import STable as STable
 from ._etform import Table as Table
 from ._etform import Text as Text
 from ._etform import TextColor as TextColor

@@ -13,7 +13,8 @@ display objects.
 
 - Native ncurses UI implemented as a CPython extension.
 - Text, boolean, choice, checkbox, integer, and list inputs.
-- Static sections, text blocks, separators, and tables for grouping larger forms.
+- Static sections, text blocks, separators, and `STable` tables for grouping larger forms.
+- Interactive `ITable` inputs with editable rows and structured table results.
 - Styled text with alignment, color, bold, italicized, dim, underline, blink,
   strikethrough, and wrapping attributes.
 - Inline text editing with cursor movement and clipboard paste.
@@ -81,11 +82,11 @@ manual runs without publishing them. PyPI names are claimed on first upload.
 ## Quick Start
 
 ```python
-from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
+from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, STable, Text
 
 
 form = Form(title="Project Setup")
-commands = Table(
+commands = STable(
     title=Text("Commands", align="center", bold=True, color="yellow"),
     color="cyan",
 )
@@ -172,7 +173,7 @@ python3 examples/doc_demo.py
 Import the framework objects from `etform`:
 
 ```python
-from etform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Group, Image, OrderedList, Paragraph, Table, Text, UnorderedList
+from etform import BrailleCanvas, Calendar, Clock, CodeBlock, Doc, FilePicker, Form, Group, ITable, Image, OrderedList, Paragraph, STable, Text, UnorderedList
 ```
 
 ### `Doc`
@@ -252,6 +253,32 @@ When static content is taller than the viewport, Up/Down scroll through it in
 steps without selecting a field. Page Up/Page Down move by larger viewport
 steps, and Home/End jump to the document boundaries. Field selection resumes
 when the pending field reaches the visible viewport.
+
+### `ITable`
+
+`ITable` defines an editable table input. Add column names before attaching it
+to a form. On entry, the first row is created automatically; type into the
+selected cell, use the arrow keys to navigate, Ctrl+R to add a row, Ctrl+D to
+delete the selected row, and Ctrl+E to leave the table editor.
+Press Ctrl+M to select a source row, use Up/Down to select a destination,
+and press Enter to swap them. Both rows are highlighted in their column
+colors; Left/Right changes the visible columns, and Escape cancels the swap.
+Some terminals send the same key code for Ctrl+M and Enter, so Enter also
+starts a swap while editing a table.
+Columns use randomly chosen, contrasting colors that remain stable while the
+form runs. When the table is wider than the available space, moving between
+cells reveals the corresponding columns.
+
+```python
+dependencies = ITable(key="dependencies", title="Dependencies", show_lines=True)
+dependencies.add_column("Package")
+dependencies.add_column("Version")
+form.add_table_input(dependencies)
+```
+
+The submitted value is a mapping with `columns` and `data` lists. `Table`
+remains an alias for `STable`, the static table display used in sections and
+documents.
 
 ### `Text`
 

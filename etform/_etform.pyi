@@ -163,7 +163,7 @@ class Image:
     def padding(self) -> int: ...
 
 
-class Table:
+class STable:
     def __init__(
         self,
         title: Label = "",
@@ -189,6 +189,22 @@ class Table:
     def add_row(self, *cells: str) -> None: ...
 
     def add_separator_row(self, label: Label = "") -> None: ...
+
+Table = STable
+
+
+class ITable:
+    def __init__(
+        self,
+        key: str,
+        title: Label | None = None,
+        color: TextColor = "default",
+        padding: int = 1,
+        show_lines: bool = False,
+        show_gutter: bool = True,
+    ) -> None: ...
+
+    def add_column(self, name: str) -> None: ...
 
 
 class CodeBlock:
@@ -352,5 +368,7 @@ class Form:
         tools: FilePicker | Calendar | Clock | Sequence[FilePicker | Calendar | Clock] | None = None,
         padding: int = 1,
     ) -> None: ...
+
+    def add_table_input(self, table: ITable) -> None: ...
 
     def run(self) -> dict[str, Any] | None: ...

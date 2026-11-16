@@ -78,6 +78,7 @@ void etform_table_init(ETFormTable *table) {
     memset(table, 0, sizeof(*table));
     etform_text_style_init(&table->title);
     table->show_lines = 0;
+    table->show_gutter = 1;
     table->color = ETFORM_TEXT_COLOR_DEFAULT;
     table->padding = ETFORM_DEFAULT_PADDING;
 }
@@ -257,6 +258,52 @@ static int etform_table_add_separator_value(ETFormTable *table, const ETFormText
     return 0;
 }
 
+int etform_table_add_empty_row(ETFormTable *table) {
+    if (!table || table->column_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "columns must be added before rows");
+        return -1;
+    }
+    if (etform_table_ensure_row_capacity(table, table->row_count + 1) < 0) {
+        return -1;
+    }
+    char **cells = calloc((size_t)table->column_count, sizeof(char *));
+    if (!cells) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    for (int col = 0; col < table->column_count; col++) {
+        cells[col] = etform_strdup("");
+        if (!cells[col]) {
+            for (int previous = 0; previous < col; previous++) {
+                free(cells[previous]);
+            }
+            free(cells);
+            return -1;
+        }
+    }
+    ETFormTableRow *row = &table->rows[table->row_count++];
+    memset(row, 0, sizeof(*row));
+    row->cells = cells;
+    return 0;
+}
+
+int etform_table_delete_row(ETFormTable *table, int index) {
+    if (!table || index < 0 || index >= table->row_count || table->rows[index].is_separator) {
+        PyErr_SetString(PyExc_IndexError, "invalid interactive table row");
+        return -1;
+    }
+    for (int col = 0; col < table->column_count; col++) {
+        free(table->rows[index].cells[col]);
+    }
+    free(table->rows[index].cells);
+    for (int row = index; row + 1 < table->row_count; row++) {
+        table->rows[row] = table->rows[row + 1];
+    }
+    table->row_count--;
+    memset(&table->rows[table->row_count], 0, sizeof(ETFormTableRow));
+    return 0;
+}
+
 int etform_table_copy(ETFormTable *dest, const ETFormTable *src) {
     if (!dest || !src) {
         return -1;
@@ -266,6 +313,7 @@ int etform_table_copy(ETFormTable *dest, const ETFormTable *src) {
         return -1;
     }
     dest->show_lines = src->show_lines;
+    dest->show_gutter = src->show_gutter;
     dest->color = src->color;
     dest->padding = src->padding;
     for (int col = 0; col < src->column_count; col++) {
@@ -349,6 +397,10 @@ void etform_field_free(ETFormField *field) {
         etform_section_element_free(&field->section_elements[i]);
     }
     free(field->section_elements);
+    if (field->kind == ETFORM_FIELD_ITABLE) {
+        etform_table_free(&field->interactive_table);
+    }
+    free(field->table_column_colors);
     memset(field, 0, sizeof(*field));
 }
 
@@ -524,6 +576,9 @@ static ETFormField *append_field(
     field->key = etform_strdup(key);
     field->description = etform_strdup(description ? description : "");
     field->kind = kind;
+    if (kind == ETFORM_FIELD_ITABLE) {
+        etform_table_init(&field->interactive_table);
+    }
     if (!field->key || !field->description) {
         etform_field_free(field);
         return NULL;
@@ -675,6 +730,12 @@ typedef struct {
     PyObject_HEAD
     ETFormTable table;
 } ETFormTableObject;
+
+typedef struct {
+    PyObject_HEAD
+    char *key;
+    ETFormTable table;
+} ETFormITableObject;
 
 static PyObject *Text_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     (void)args;
@@ -1465,7 +1526,7 @@ static void Table_dealloc(ETFormTableObject *self) {
 
 static PyObject *Table_repr(ETFormTableObject *self) {
     return PyUnicode_FromFormat(
-        "Table(title='%s', columns=%d, rows=%d)",
+        "STable(title='%s', columns=%d, rows=%d)",
         self->table.title.value ? self->table.title.value : "",
         self->table.column_count,
         self->table.row_count
@@ -1551,7 +1612,7 @@ static PyGetSetDef Table_getset[] = {
 
 PyTypeObject ETFormTableType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "etform.Table",
+    .tp_name = "etform.STable",
     .tp_basicsize = sizeof(ETFormTableObject),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)Table_dealloc,
@@ -1562,6 +1623,117 @@ PyTypeObject ETFormTableType = {
     .tp_getset = Table_getset,
     .tp_init = (initproc)Table_init,
     .tp_new = Table_new,
+};
+
+static PyObject *ITable_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    (void)args;
+    (void)kwargs;
+    ETFormITableObject *self = (ETFormITableObject *)type->tp_alloc(type, 0);
+    if (!self) {
+        return NULL;
+    }
+    etform_table_init(&self->table);
+    return (PyObject *)self;
+}
+
+static int ITable_init(ETFormITableObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"key", "title", "color", "padding", "show_lines", "show_gutter", NULL};
+    const char *key = NULL;
+    PyObject *title_obj = NULL;
+    const char *color_text = "default";
+    PyObject *padding_obj = Py_None;
+    int show_lines = 0;
+    int show_gutter = 1;
+    ETFormTextColor color = ETFORM_TEXT_COLOR_DEFAULT;
+    int padding = ETFORM_DEFAULT_PADDING;
+    ETFormTextStyle title_style;
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "s|OsOpp", kwlist,
+            &key, &title_obj, &color_text, &padding_obj, &show_lines, &show_gutter
+        )) {
+        return -1;
+    }
+    if (!key || !*key) {
+        PyErr_SetString(PyExc_ValueError, "table key must not be empty");
+        return -1;
+    }
+    if (parse_text_color(color_text, &color) < 0 || parse_padding(padding_obj, &padding) < 0) {
+        return -1;
+    }
+    if (title_obj && title_obj != Py_None) {
+        if (parse_label_object(title_obj, 0, &title_style) < 0) {
+            return -1;
+        }
+    } else {
+        etform_text_style_init(&title_style);
+        if (etform_text_style_set_value(&title_style, key) < 0) {
+            return -1;
+        }
+    }
+    char *key_copy = etform_strdup(key);
+    if (!key_copy) {
+        etform_text_style_free(&title_style);
+        return -1;
+    }
+    etform_table_free(&self->table);
+    etform_table_init(&self->table);
+    if (etform_table_set_title(&self->table, &title_style) < 0) {
+        free(key_copy);
+        etform_text_style_free(&title_style);
+        return -1;
+    }
+    etform_text_style_free(&title_style);
+    free(self->key);
+    self->key = key_copy;
+    self->table.show_lines = show_lines ? 1 : 0;
+    self->table.show_gutter = show_gutter ? 1 : 0;
+    self->table.color = color;
+    self->table.padding = padding;
+    return 0;
+}
+
+static void ITable_dealloc(ETFormITableObject *self) {
+    free(self->key);
+    etform_table_free(&self->table);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *ITable_repr(ETFormITableObject *self) {
+    return PyUnicode_FromFormat(
+        "ITable(key='%s', columns=%d)",
+        self->key ? self->key : "",
+        self->table.column_count
+    );
+}
+
+static PyObject *ITable_add_column(ETFormITableObject *self, PyObject *args) {
+    const char *name = NULL;
+    if (!PyArg_ParseTuple(args, "s", &name)) {
+        return NULL;
+    }
+    if (etform_table_add_column_value(&self->table, name) < 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef ITable_methods[] = {
+    {"add_column", (PyCFunction)ITable_add_column, METH_VARARGS, "Add an input table column."},
+    {NULL, NULL, 0, NULL},
+};
+
+PyTypeObject ETFormITableType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "etform.ITable",
+    .tp_basicsize = sizeof(ETFormITableObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)ITable_dealloc,
+    .tp_repr = (reprfunc)ITable_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Interactive table input for a form.",
+    .tp_methods = ITable_methods,
+    .tp_init = (initproc)ITable_init,
+    .tp_new = ITable_new,
 };
 
 static int apply_tool(ETFormField *field, PyObject *tool) {
@@ -2559,6 +2731,89 @@ static PyObject *Form_add_list(PyObject *self_obj, PyObject *args, PyObject *kwa
     Py_RETURN_NONE;
 }
 
+static int init_table_column_colors(ETFormField *field) {
+    static const unsigned char palette[] = {196, 46, 51, 190, 201, 202, 39, 129};
+    int count = field->interactive_table.column_count;
+    field->table_column_colors = malloc((size_t)count);
+    if (!field->table_column_colors) {
+        PyErr_NoMemory();
+        return -1;
+    }
+
+    PyObject *os = PyImport_ImportModule("os");
+    if (!os) {
+        return -1;
+    }
+    PyObject *random_bytes = PyObject_CallMethod(os, "urandom", "i", count);
+    Py_DECREF(os);
+    if (!random_bytes) {
+        return -1;
+    }
+    char *bytes;
+    Py_ssize_t length;
+    if (PyBytes_AsStringAndSize(random_bytes, &bytes, &length) < 0) {
+        Py_DECREF(random_bytes);
+        return -1;
+    }
+    if (length != count) {
+        Py_DECREF(random_bytes);
+        PyErr_SetString(PyExc_RuntimeError, "could not initialize table column colors");
+        return -1;
+    }
+    const unsigned char *random = (const unsigned char *)bytes;
+    int previous = -1;
+    for (int col = 0; col < count; col++) {
+        int candidates[sizeof(palette)];
+        int candidate_count = 0;
+        for (size_t i = 0; i < sizeof(palette); i++) {
+            int color = palette[i] - 16;
+            int r = color / 36, g = (color / 6) % 6, b = color % 6;
+            int prev = previous - 16;
+            int dr = r - prev / 36, dg = g - (prev / 6) % 6, db = b - prev % 6;
+            if (previous < 0 || dr * dr + dg * dg + db * db >= 18) {
+                candidates[candidate_count++] = (int)i;
+            }
+        }
+        int selected = candidates[random[col] % candidate_count];
+        previous = palette[selected];
+        field->table_column_colors[col] = (unsigned char)previous;
+    }
+    Py_DECREF(random_bytes);
+    return 0;
+}
+
+static PyObject *Form_add_table_input(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    ETFormObject *self = (ETFormObject *)self_obj;
+    static char *kwlist[] = {"table", NULL};
+    PyObject *table_obj = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist, &table_obj)) {
+        return NULL;
+    }
+    if (!PyObject_TypeCheck(table_obj, &ETFormITableType)) {
+        PyErr_SetString(PyExc_TypeError, "table must be an ITable");
+        return NULL;
+    }
+    ETFormITableObject *input = (ETFormITableObject *)table_obj;
+    if (input->table.column_count <= 0) {
+        PyErr_SetString(PyExc_ValueError, "interactive table must have at least one column");
+        return NULL;
+    }
+    ETFormField *field = append_field(self, input->key, "", ETFORM_FIELD_ITABLE);
+    if (!field) {
+        return NULL;
+    }
+    if (etform_text_style_copy(&field->label, &input->table.title, input->key) < 0 ||
+        etform_table_copy(&field->interactive_table, &input->table) < 0 ||
+        init_table_column_colors(field) < 0) {
+        self->field_count--;
+        etform_field_free(field);
+        return NULL;
+    }
+    field->field_color = input->table.color;
+    field->padding = input->table.padding;
+    Py_RETURN_NONE;
+}
+
 static PyObject *Form_run(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
     ETFormObject *self = (ETFormObject *)self_obj;
     if (self->field_count <= 0) {
@@ -2567,7 +2822,9 @@ static PyObject *Form_run(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
     }
     int result = etform_run_form(self);
     if (result < 0) {
-        PyErr_SetString(PyExc_RuntimeError, "could not run form");
+        if (!PyErr_Occurred()) {
+            PyErr_SetString(PyExc_RuntimeError, "could not run form");
+        }
         return NULL;
     }
     if (result == 0) {
@@ -2630,6 +2887,78 @@ PyObject *etform_build_result(ETFormObject *self) {
                     }
                 }
                 break;
+            case ETFORM_FIELD_ITABLE: {
+                ETFormTable *table = &field->interactive_table;
+                value = PyDict_New();
+                if (!value) {
+                    break;
+                }
+                PyObject *columns = PyList_New(table->column_count);
+                PyObject *data = PyList_New(table->row_count);
+                if (!columns || !data) {
+                    Py_XDECREF(columns);
+                    Py_XDECREF(data);
+                    Py_DECREF(value);
+                    value = NULL;
+                    break;
+                }
+                for (int col = 0; col < table->column_count; col++) {
+                    PyObject *column = PyUnicode_FromString(table->columns[col] ? table->columns[col] : "");
+                    if (!column) {
+                        Py_DECREF(columns);
+                        Py_DECREF(data);
+                        Py_DECREF(value);
+                        value = NULL;
+                        break;
+                    }
+                    PyList_SET_ITEM(columns, col, column);
+                }
+                if (!value) {
+                    break;
+                }
+                for (int row = 0; row < table->row_count; row++) {
+                    PyObject *cells = PyList_New(table->column_count);
+                    if (!cells) {
+                        Py_DECREF(columns);
+                        Py_DECREF(data);
+                        Py_DECREF(value);
+                        value = NULL;
+                        break;
+                    }
+                    for (int col = 0; col < table->column_count; col++) {
+                        PyObject *cell = PyUnicode_FromString(
+                            table->rows[row].cells[col] ? table->rows[row].cells[col] : ""
+                        );
+                        if (!cell) {
+                            Py_DECREF(cells);
+                            cells = NULL;
+                            break;
+                        }
+                        PyList_SET_ITEM(cells, col, cell);
+                    }
+                    if (!cells) {
+                        Py_DECREF(columns);
+                        Py_DECREF(data);
+                        Py_DECREF(value);
+                        value = NULL;
+                        break;
+                    }
+                    PyList_SET_ITEM(data, row, cells);
+                }
+                if (value) {
+                    if (PyDict_SetItemString(value, "columns", columns) < 0 ||
+                        PyDict_SetItemString(value, "data", data) < 0) {
+                        Py_DECREF(columns);
+                        Py_DECREF(data);
+                        Py_DECREF(value);
+                        value = NULL;
+                    } else {
+                        Py_DECREF(columns);
+                        Py_DECREF(data);
+                    }
+                }
+                break;
+            }
             case ETFORM_FIELD_TEXT_SECTION:
             case ETFORM_FIELD_SEPARATOR:
             case ETFORM_FIELD_SECTION:
@@ -2655,6 +2984,7 @@ static PyMethodDef Form_methods[] = {
     {"add_checkbox_input", (PyCFunction)Form_add_checkbox, METH_VARARGS | METH_KEYWORDS, "Add a checkbox group input field."},
     {"add_int_input", (PyCFunction)Form_add_int, METH_VARARGS | METH_KEYWORDS, "Add an integer input field."},
     {"add_list_input", (PyCFunction)Form_add_list, METH_VARARGS | METH_KEYWORDS, "Add a list input field."},
+    {"add_table_input", (PyCFunction)Form_add_table_input, METH_VARARGS | METH_KEYWORDS, "Add an interactive table input field."},
     {"run", (PyCFunction)Form_run, METH_NOARGS, "Run the native ncurses form."},
     {NULL, NULL, 0, NULL},
 };

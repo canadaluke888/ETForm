@@ -18,6 +18,8 @@
 
 #define CTRL_S 19
 #define CTRL_E 5
+#define CTRL_D 4
+#define CTRL_R 18
 #define CTRL_V 22
 #define NUMERIC_ACCEL_WINDOW_MS 180
 
@@ -26,7 +28,8 @@ typedef enum {
     ETFORM_EDIT_SCROLL,
     ETFORM_EDIT_TEXT,
     ETFORM_EDIT_LIST,
-    ETFORM_EDIT_CHECKBOX
+    ETFORM_EDIT_CHECKBOX,
+    ETFORM_EDIT_ITABLE
 } ETFormEditMode;
 
 typedef struct {
@@ -108,6 +111,36 @@ static int text_field_insert_char(ETFormField *field, int *cursor, char ch, int 
     field->text_value[*cursor] = ch;
     (*cursor)++;
     return 1;
+}
+
+static int table_cell_insert_char(ETFormTable *table, int row, int col, char ch) {
+    if (!table || row < 0 || row >= table->row_count ||
+        col < 0 || col >= table->column_count || ch < 32 || ch > 126) {
+        return 0;
+    }
+    char *value = table->rows[row].cells[col];
+    size_t length = value ? strlen(value) : 0;
+    char *next = realloc(value, length + 2);
+    if (!next) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    next[length] = ch;
+    next[length + 1] = '\0';
+    table->rows[row].cells[col] = next;
+    return 1;
+}
+
+static void table_cell_backspace(ETFormTable *table, int row, int col) {
+    if (!table || row < 0 || row >= table->row_count ||
+        col < 0 || col >= table->column_count) {
+        return;
+    }
+    char *value = table->rows[row].cells[col];
+    size_t length = value ? strlen(value) : 0;
+    if (length > 0) {
+        value[length - 1] = '\0';
+    }
 }
 
 static void text_field_insert_text(ETFormField *field, int *cursor, const char *text, int max_cols) {
@@ -413,6 +446,9 @@ static void field_value(ETFormField *field, char *buffer, size_t size) {
         case ETFORM_FIELD_CHECKBOX:
             summarize_checkbox(field, buffer, size);
             break;
+        case ETFORM_FIELD_ITABLE:
+            snprintf(buffer, size, "%d rows", field->interactive_table.row_count);
+            break;
         case ETFORM_FIELD_TEXT_SECTION:
         case ETFORM_FIELD_SEPARATOR:
         case ETFORM_FIELD_SECTION:
@@ -713,6 +749,7 @@ static void edit_field(ETFormField *field) {
         case ETFORM_FIELD_TEXT_SECTION:
         case ETFORM_FIELD_SEPARATOR:
         case ETFORM_FIELD_SECTION:
+        case ETFORM_FIELD_ITABLE:
             break;
         case ETFORM_FIELD_CHOICE:
         case ETFORM_FIELD_BOOL:
@@ -1006,6 +1043,12 @@ static int field_display_height(ETFormField *field, int width) {
     }
     if (field && field->kind == ETFORM_FIELD_CHECKBOX) {
         return (field->checkbox_count > 0 ? field->checkbox_count : 1) + 3 + padding * 2;
+    }
+    if (field && field->kind == ETFORM_FIELD_ITABLE) {
+        ETFormTable table = field->interactive_table;
+        table.title.value = NULL;
+        table.padding = 0;
+        return table_display_height(&table) + 5 + padding * 2;
     }
     if (field &&
         field->kind == ETFORM_FIELD_TEXT &&
@@ -2069,6 +2112,175 @@ static void draw_table(
     free(widths);
 }
 
+static int interactive_column_attr(unsigned char color) {
+    short pair = etform_image_color_pair(color);
+    if (pair) {
+        return COLOR_PAIR(pair);
+    }
+    if (!has_colors()) {
+        return A_NORMAL;
+    }
+    switch (color) {
+        case 196: return COLOR_PAIR(ETFORM_PAIR_GUTTER_MARKER);
+        case 46: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_STRING);
+        case 51: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_KEYWORD);
+        case 190: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_TYPE);
+        case 201: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_NUMBER);
+        case 202: return COLOR_PAIR(ETFORM_PAIR_GUTTER_MARKER) | A_BOLD;
+        case 39: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_COMMENT);
+        default: return COLOR_PAIR(ETFORM_PAIR_SYNTAX_PREPROCESSOR);
+    }
+}
+
+static void draw_interactive_cells(
+    WINDOW *win,
+    int y,
+    int x,
+    ETFormTable *table,
+    const int *widths,
+    const unsigned char *colors,
+    const char **cells,
+    int border_attr,
+    int header,
+    int selected_col,
+    int highlighted_row,
+    int clip_top,
+    int clip_bottom
+) {
+    if (y < clip_top || y >= clip_bottom) {
+        return;
+    }
+    draw_table_cells(
+        win, y, x, table_inner_width_from_columns(table, widths), table, widths, cells,
+        header ? "┃" : "│", header ? "┃" : "│", header ? "┃" : "│",
+        border_attr, etform_color_pair(ETFORM_PAIR_NORMAL) | (header ? A_BOLD : 0),
+        clip_top, clip_bottom
+    );
+    int cell_x = x + 2;
+    for (int col = 0; col < table->column_count; col++) {
+        const char *text = cells[col] ? cells[col] : "";
+        int attr = interactive_column_attr(colors[col]) | (header ? A_BOLD : 0);
+        if (highlighted_row || col == selected_col) {
+            attr |= A_REVERSE;
+        }
+        wattrset(win, attr);
+        if (highlighted_row) {
+            mvwhline(win, y, cell_x - 1, ' ', widths[col] + 2);
+        }
+        wmove(win, y, cell_x);
+        int visible = etform_ui_text_addstr_width(win, text, widths[col]);
+        for (int pad = visible; pad < widths[col]; pad++) {
+            waddch(win, ' ');
+        }
+        if (col == selected_col) {
+            int cursor_x = cell_x + visible;
+            wattrset(win, etform_color_pair(ETFORM_PAIR_CURSOR_ALT));
+            mvwaddch(win, y, cursor_x, ' ');
+        }
+        cell_x += widths[col] + (table->show_lines ? 3 : 2);
+    }
+    wattrset(win, etform_color_pair(ETFORM_PAIR_NORMAL));
+}
+
+static int draw_interactive_table_field(
+    WINDOW *win,
+    int y,
+    int x,
+    int width,
+    int height,
+    ETFormField *field,
+    int selected,
+    int editing,
+    int active_row,
+    int active_col,
+    int swap_source,
+    int clip_top,
+    int clip_bottom
+) {
+    draw_field(
+        win, y, x, width, height, selected, editing, 0, 0, 0,
+        &field->label, field->field_color, "", NULL, clip_top, clip_bottom
+    );
+    int table_x = x + 2;
+    int table_width = width - 4;
+    int table_y = y + 3;
+    if (table_width < 5) {
+        return 0;
+    }
+    ETFormTable *table = &field->interactive_table;
+    int *widths = calloc((size_t)table->column_count, sizeof(int));
+    if (!widths) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    table_column_widths(table, widths);
+    for (int col = 0; col < table->column_count; col++) {
+        if (widths[col] < 1) widths[col] = 1;
+        if (widths[col] > table_width - 4) widths[col] = table_width - 4;
+    }
+    int first = 0;
+    int last = 0;
+    int target = editing && active_col >= 0 && active_col < table->column_count ? active_col : 0;
+    int used = widths[target] + 4;
+    first = target;
+    while (first > 0) {
+        int extra = widths[first - 1] + (table->show_lines ? 3 : 2);
+        if (extra > table_width - used) break;
+        used += extra;
+        first--;
+    }
+    last = target + 1;
+    while (last < table->column_count) {
+        int extra = widths[last] + (table->show_lines ? 3 : 2);
+        if (extra > table_width - used) break;
+        used += extra;
+        last++;
+    }
+    ETFormTable view = *table;
+    view.columns = table->columns + first;
+    view.column_count = last - first;
+    view.title.value = NULL;
+    view.padding = 0;
+    ETFormTextStyle border_style;
+    etform_text_style_init(&border_style);
+    border_style.color = table->color;
+    int border_attr = text_attr(&border_style, etform_color_pair(ETFORM_PAIR_FOOTER_BORDER));
+    int row_y = table_y;
+    draw_table_top_rule(
+        win, row_y++, table_x, table_width, &view, widths + first,
+        border_attr, 0, clip_top, clip_bottom
+    );
+    draw_interactive_cells(
+        win, row_y++, table_x, &view, widths + first, field->table_column_colors + first,
+        (const char **)view.columns, border_attr, 1, -1, 0, clip_top, clip_bottom
+    );
+    draw_table_rule(
+        win, row_y++, table_x, table_width, &view, widths + first,
+        "┡", "╇", "┩", "━", border_attr, clip_top, clip_bottom
+    );
+    for (int row = 0; row < table->row_count; row++) {
+        draw_interactive_cells(
+            win, row_y++, table_x, &view, widths + first, field->table_column_colors + first,
+            (const char **)(table->rows[row].cells + first), border_attr, 0,
+            editing && swap_source < 0 && row == active_row ? active_col - first : -1,
+            editing && swap_source >= 0 && (row == swap_source || row == active_row),
+            clip_top, clip_bottom
+        );
+        if (table->show_lines && row + 1 < table->row_count) {
+            draw_table_rule(
+                win, row_y++, table_x, table_width, &view, widths + first,
+                "├", "┼", "┤", "─", border_attr, clip_top, clip_bottom
+            );
+        }
+    }
+    draw_table_rule(
+        win, row_y, table_x, table_width, &view, widths + first,
+        "└", "┴", "┘", "─", border_attr, clip_top, clip_bottom
+    );
+    free(widths);
+    return 0;
+}
+
 static void draw_section_box(WINDOW *win, int y, int x, int width, int height, int clip_top, int clip_bottom) {
     if (!win || width < 2 || height < 2) {
         return;
@@ -2306,7 +2518,7 @@ static void draw_selection_pointer(WINDOW *win, int field_y, int field_height, i
     wattroff(win, attr);
 }
 
-static void draw_form(
+static int draw_form(
     ETFormPmNode *main_panel,
     ETFormPmNode *footer_panel,
     ETFormObject *form,
@@ -2316,6 +2528,9 @@ static void draw_form(
     int list_selected,
     int list_inputting,
     int checkbox_selected,
+    int table_selected_row,
+    int table_selected_col,
+    int table_swap_source,
     int selection_active,
     int *top
 ) {
@@ -2347,11 +2562,22 @@ static void draw_form(
     if (selection_active && selected >= 0 && selected < form->field_count) {
         int selected_top = field_top_row(form, selected, form_width) - 1;
         int selected_bottom = selected_top + field_display_height(&form->fields[selected], form_width);
-        if (selected_top < *top) {
-            *top = selected_top;
-        }
-        if (selected_bottom > *top + viewport_rows) {
-            *top = selected_bottom - viewport_rows;
+        ETFormField *field = &form->fields[selected];
+        if (edit_mode == ETFORM_EDIT_ITABLE && field->interactive_table.row_count > 0) {
+            int row_offset = table_selected_row * (field->interactive_table.show_lines ? 2 : 1);
+            int cursor_row = selected_top + field->padding + 6 + row_offset;
+            if (cursor_row < *top) {
+                *top = cursor_row;
+            } else if (cursor_row >= *top + viewport_rows) {
+                *top = cursor_row - viewport_rows + 1;
+            }
+        } else {
+            if (selected_top < *top) {
+                *top = selected_top;
+            }
+            if (selected_bottom > *top + viewport_rows) {
+                *top = selected_bottom - viewport_rows;
+            }
         }
     }
     int max_top = form_max_top(form, form_width);
@@ -2433,24 +2659,44 @@ static void draw_form(
             *form->fields[index].placeholder.value) {
             value_style = &form->fields[index].placeholder;
         }
-        draw_field(
-            main_panel->win,
-            content_y,
-            form_x,
-            form_width,
-            content_height,
-            selection_active && index == selected,
-            selection_active && edit_mode != ETFORM_EDIT_NONE && index == selected,
-            selection_active && edit_mode == ETFORM_EDIT_TEXT && index == selected,
-            form->fields[index].wrap_text,
-            selection_active && index == selected ? text_cursor : 0,
-            &form->fields[index].label,
-            form->fields[index].field_color,
-            value,
-            value_style,
-            1,
-            body_h
-        );
+        if (form->fields[index].kind == ETFORM_FIELD_ITABLE) {
+            if (draw_interactive_table_field(
+                main_panel->win,
+                content_y,
+                form_x,
+                form_width,
+                content_height,
+                &form->fields[index],
+                selection_active && index == selected,
+                selection_active && edit_mode == ETFORM_EDIT_ITABLE && index == selected,
+                table_selected_row,
+                table_selected_col,
+                table_swap_source,
+                1,
+                body_h
+            ) < 0) {
+                return -1;
+            }
+        } else {
+            draw_field(
+                main_panel->win,
+                content_y,
+                form_x,
+                form_width,
+                content_height,
+                selection_active && index == selected,
+                selection_active && edit_mode != ETFORM_EDIT_NONE && index == selected,
+                selection_active && edit_mode == ETFORM_EDIT_TEXT && index == selected,
+                form->fields[index].wrap_text,
+                selection_active && index == selected ? text_cursor : 0,
+                &form->fields[index].label,
+                form->fields[index].field_color,
+                value,
+                value_style,
+                1,
+                body_h
+            );
+        }
         if (form->fields[index].kind == ETFORM_FIELD_LIST) {
             draw_list_items(
                 main_panel->win,
@@ -2480,7 +2726,9 @@ static void draw_form(
                 body_h
             );
         }
-        if (selection_active && index == selected && field_is_selectable(&form->fields[index])) {
+        if (selection_active && index == selected && field_is_selectable(&form->fields[index]) &&
+            (form->fields[index].kind != ETFORM_FIELD_ITABLE ||
+             form->fields[index].interactive_table.show_gutter)) {
             draw_selection_pointer(main_panel->win, content_y, content_height, form_x, body_h);
         }
     }
@@ -2508,6 +2756,12 @@ static void draw_form(
         }
     } else if (edit_mode == ETFORM_EDIT_CHECKBOX) {
         etform_ui_draw_footer(footer_panel->win, "[Up/Down] Option  [Space/Enter] Toggle  [Ctrl+E] Done  [Esc] Done");
+    } else if (edit_mode == ETFORM_EDIT_ITABLE) {
+        if (table_swap_source >= 0) {
+            etform_ui_draw_footer(footer_panel->win, "[Up/Down] Row  [Left/Right] Columns  [Enter] Swap  [Esc] Cancel");
+        } else {
+            etform_ui_draw_footer(footer_panel->win, "[Arrows] Cell  [Ctrl+R] Add  [Ctrl+D] Delete  [Ctrl+M] Swap  [Ctrl+E] Done");
+        }
     } else if (!selection_active) {
         etform_ui_draw_footer(footer_panel->win, "[Up/Down] Scroll  [PgUp/PgDn] Page  [Home/End] Document  [Q] Exit");
     } else {
@@ -2516,6 +2770,7 @@ static void draw_form(
     etform_pm_wnoutrefresh(main_panel);
     etform_pm_wnoutrefresh(footer_panel);
     etform_pm_update();
+    return 0;
 }
 
 int etform_run_form(ETFormObject *form) {
@@ -2559,12 +2814,15 @@ int etform_run_form(ETFormObject *form) {
     int list_selected = 0;
     int list_inputting = 0;
     int checkbox_selected = 0;
+    int table_selected_row = 0;
+    int table_selected_col = 0;
+    int table_swap_source = -1;
     ETFormEditMode edit_mode = ETFORM_EDIT_NONE;
     NumericScrollState numeric_scroll;
     reset_numeric_scroll(&numeric_scroll);
     int result = 0;
     for (;;) {
-        draw_form(
+        if (draw_form(
             main_panel,
             footer_panel,
             form,
@@ -2574,9 +2832,15 @@ int etform_run_form(ETFormObject *form) {
             list_selected,
             list_inputting,
             checkbox_selected,
+            table_selected_row,
+            table_selected_col,
+            table_swap_source,
             selection_active,
             &top
-        );
+        ) < 0) {
+            result = -1;
+            break;
+        }
         int ch = read_form_key(main_panel->win);
         if (edit_mode == ETFORM_EDIT_TEXT) {
             ETFormField *field = &form->fields[selected];
@@ -2754,6 +3018,74 @@ int etform_run_form(ETFormObject *form) {
             }
             continue;
         }
+        if (edit_mode == ETFORM_EDIT_ITABLE) {
+            ETFormTable *table = &form->fields[selected].interactive_table;
+            if (table_selected_row >= table->row_count) {
+                table_selected_row = table->row_count > 0 ? table->row_count - 1 : 0;
+            }
+            if (table_selected_col >= table->column_count) {
+                table_selected_col = table->column_count > 0 ? table->column_count - 1 : 0;
+            }
+            if (ch == CTRL_E) {
+                table_swap_source = -1;
+                edit_mode = ETFORM_EDIT_NONE;
+            } else if (ch == 27) {
+                if (table_swap_source >= 0) {
+                    table_selected_row = table_swap_source;
+                    table_swap_source = -1;
+                } else {
+                    edit_mode = ETFORM_EDIT_NONE;
+                }
+            } else if ((ch == '\n' || ch == '\r' || ch == KEY_ENTER) && table->row_count > 0) {
+                if (table_swap_source < 0) {
+                    table_swap_source = table_selected_row;
+                } else {
+                    ETFormTableRow row = table->rows[table_swap_source];
+                    table->rows[table_swap_source] = table->rows[table_selected_row];
+                    table->rows[table_selected_row] = row;
+                    table_swap_source = -1;
+                }
+            } else if (ch == CTRL_R && table_swap_source < 0) {
+                if (etform_table_add_empty_row(table) < 0) {
+                    result = -1;
+                    break;
+                }
+                table_selected_row = table->row_count - 1;
+                table_selected_col = 0;
+            } else if (ch == CTRL_D && table_swap_source < 0 && table->row_count > 0) {
+                if (etform_table_delete_row(table, table_selected_row) < 0) {
+                    result = -1;
+                    break;
+                }
+                if (table_selected_row >= table->row_count) {
+                    table_selected_row = table->row_count > 0 ? table->row_count - 1 : 0;
+                }
+            } else if (ch == KEY_LEFT && table->column_count > 0) {
+                table_selected_col = table_selected_col > 0
+                    ? table_selected_col - 1 : table->column_count - 1;
+            } else if (ch == KEY_RIGHT && table->column_count > 0) {
+                table_selected_col = (table_selected_col + 1) % table->column_count;
+            } else if (ch == KEY_UP && table->row_count > 0) {
+                table_selected_row = table_selected_row > 0
+                    ? table_selected_row - 1 : table->row_count - 1;
+            } else if (ch == KEY_DOWN && table->row_count > 0) {
+                table_selected_row = (table_selected_row + 1) % table->row_count;
+            } else if ((ch == KEY_BACKSPACE || ch == 127 || ch == 8) &&
+                       table_swap_source < 0 && table->row_count > 0) {
+                table_cell_backspace(table, table_selected_row, table_selected_col);
+            } else if (ch == CTRL_S) {
+                result = 1;
+                break;
+            } else if (ch >= 32 && ch <= 126 && table_swap_source < 0 && table->row_count > 0) {
+                if (table_cell_insert_char(
+                        table, table_selected_row, table_selected_col, (char)ch
+                    ) < 0) {
+                    result = -1;
+                    break;
+                }
+            }
+            continue;
+        }
         reset_numeric_scroll(&numeric_scroll);
         if (ch == 'q' || ch == 'Q') {
             break;
@@ -2906,6 +3238,16 @@ int etform_run_form(ETFormObject *form) {
             } else if (form->fields[selected].kind == ETFORM_FIELD_CHECKBOX) {
                 checkbox_selected = form->fields[selected].checkbox_count > 0 ? 0 : 0;
                 edit_mode = ETFORM_EDIT_CHECKBOX;
+            } else if (form->fields[selected].kind == ETFORM_FIELD_ITABLE) {
+                ETFormTable *table = &form->fields[selected].interactive_table;
+                if (table->row_count <= 0 && etform_table_add_empty_row(table) < 0) {
+                    result = -1;
+                    break;
+                }
+                table_selected_row = 0;
+                table_selected_col = 0;
+                table_swap_source = -1;
+                edit_mode = ETFORM_EDIT_ITABLE;
             } else {
                 edit_field(&form->fields[selected]);
             }

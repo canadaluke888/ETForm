@@ -17,7 +17,8 @@ typedef enum {
     ETFORM_FIELD_CHECKBOX,
     ETFORM_FIELD_TEXT_SECTION,
     ETFORM_FIELD_SEPARATOR,
-    ETFORM_FIELD_SECTION
+    ETFORM_FIELD_SECTION,
+    ETFORM_FIELD_ITABLE
 } ETFormFieldKind;
 
 typedef enum {
@@ -65,6 +66,7 @@ typedef struct {
 typedef struct {
     ETFormTextStyle title;
     int show_lines;
+    int show_gutter;
     ETFormTextColor color;
     int padding;
     char **columns;
@@ -129,6 +131,8 @@ typedef struct {
     int section_element_count;
     int section_element_capacity;
     int section_boxed;
+    ETFormTable interactive_table;
+    unsigned char *table_column_colors;
 } ETFormField;
 
 typedef struct {
@@ -147,6 +151,7 @@ extern PyTypeObject ETFormClockType;
 extern PyTypeObject ETFormBrailleCanvasType;
 extern PyTypeObject ETFormImageType;
 extern PyTypeObject ETFormTableType;
+extern PyTypeObject ETFormITableType;
 
 void etform_text_style_init(ETFormTextStyle *style);
 void etform_text_style_free(ETFormTextStyle *style);
@@ -155,6 +160,8 @@ int etform_text_style_from_object(PyObject *object, int allow_empty, ETFormTextS
 void etform_table_init(ETFormTable *table);
 void etform_table_free(ETFormTable *table);
 int etform_table_copy(ETFormTable *dest, const ETFormTable *src);
+int etform_table_add_empty_row(ETFormTable *table);
+int etform_table_delete_row(ETFormTable *table, int index);
 void etform_section_element_free(ETFormSectionElement *element);
 int etform_section_element_from_object(ETFormSectionElement *element, PyObject *item);
 void etform_field_free(ETFormField *field);

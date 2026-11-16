@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, Image, Table, Text
+from etform import BrailleCanvas, Calendar, Clock, FilePicker, Form, ITable, Image, Table, Text
 
 
 def build_form() -> Form:
@@ -234,6 +234,16 @@ def build_form() -> Form:
         description="Additional arguments appended to local build and test commands.",
         field_color="white",
     )
+
+    dependencies = ITable(
+        key="dependencies",
+        title=Text("Dependencies", color="cyan", bold=True),
+        color="cyan",
+        show_lines=True,
+    )
+    dependencies.add_column("Package")
+    dependencies.add_column("Version")
+    form.add_table_input(dependencies)
 
     return form
 

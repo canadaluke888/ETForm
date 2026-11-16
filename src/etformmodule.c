@@ -35,6 +35,9 @@ PyMODINIT_FUNC PyInit__etform(void) {
     if (PyType_Ready(&ETFormTableType) < 0) {
         return NULL;
     }
+    if (PyType_Ready(&ETFormITableType) < 0) {
+        return NULL;
+    }
     if (PyType_Ready(&ETFormCodeBlockType) < 0) {
         return NULL;
     }
@@ -104,6 +107,18 @@ PyMODINIT_FUNC PyInit__etform(void) {
     Py_INCREF(&ETFormTableType);
     if (PyModule_AddObject(module, "Table", (PyObject *)&ETFormTableType) < 0) {
         Py_DECREF(&ETFormTableType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&ETFormTableType);
+    if (PyModule_AddObject(module, "STable", (PyObject *)&ETFormTableType) < 0) {
+        Py_DECREF(&ETFormTableType);
+        Py_DECREF(module);
+        return NULL;
+    }
+    Py_INCREF(&ETFormITableType);
+    if (PyModule_AddObject(module, "ITable", (PyObject *)&ETFormITableType) < 0) {
+        Py_DECREF(&ETFormITableType);
         Py_DECREF(module);
         return NULL;
     }
