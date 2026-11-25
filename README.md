@@ -27,17 +27,13 @@ display objects.
 
 ## Install
 
-The distribution and Python import are both named `etform`. Once published to
-PyPI, install it with:
+Install using PIP:
 
 ```bash
-python3 -m pip install etform
+pip install etform
 ```
 
-The planned prebuilt wheels target CPython 3.11-3.14 on glibc-based Linux
-x86-64 (manylinux_2_28, requiring glibc 2.28 or newer). Other Linux systems may
-need to build from source. Windows is not
-supported; macOS builds have not been tested. Python 3.11 or newer is required.
+Windows is not supported and macOS builds have not been tested. Python 3.11 or newer is required.
 
 To build from source, ETForm needs a C compiler, Python development headers,
 wide-character ncurses, and the panel library.
